@@ -1,0 +1,1 @@
+-- Monada para manejar errores:
