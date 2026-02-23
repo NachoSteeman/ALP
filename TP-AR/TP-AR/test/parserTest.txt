@@ -1,0 +1,33 @@
+-- RELACION SIMPLE
+Empleados
+
+-- UNION
+Empleados union Departamentos
+
+-- PRODUCTO
+Empleados producto Departamentos
+
+-- SELECT
+select [ edad > 30 ] ( Empleados )
+
+-- PROJECT
+project [ nombre, edad ] ( Empleados )
+
+-- RENAME
+rename [ nombre -> nombreEmpleado ] ( Empleados )
+
+-- GROUP
+group [ departamento ; count(nombre), avg(edad) ] ( Empleados )
+
+-- NATURAL JOIN
+Empleados naturaljoin Departamentos
+
+-- THETA JOIN
+Empleados join [ Empleados.depto = Departamentos.id ] Departamentos
+
+-- EXPRESION COMPLEJA
+select [ edad > 30 and activo = true ] (
+    project [ nombre, edad ] (
+        Empleados naturaljoin Departamentos
+    )
+)
