@@ -1,15 +1,29 @@
-empleados :: Relacion
-empleados = R 
-    { atributos = Set.fromList ["nombre", "edad", "dpto"]
-    , tuplas = Set.fromList
-        [ Map.fromList [("nombre", VString "Ana"), ("edad", VInt 25), ("dpto", VString "IT")]
-        , Map.fromList [("nombre", VString "Luis"), ("edad", VInt 30), ("dpto", VString "HR")]
-        , Map.fromList [("nombre", VString "María"), ("edad", VInt 28), ("dpto", VString "IT")]
-        ]
-    , nombre = "Empleados"
-    }
+imoprt AST 
 
-main :: IO ()
-main = do
-    putStrLn $ prettyRelacion empleados
-    
+e17 :: Expr
+e17 =
+  EProyeccion ["Nombre"]
+    (ESeleccion
+        (PAnd
+          (PGt "Edad" (VInt 18))
+          (PNot (PEq "Ciudad" (VString "BuenosAires")))
+        )
+        (ENaturalJoin
+            (ERelacion "Personas")
+            (ERelacion "Inscripciones")
+        )
+    )
+
+e15 :: Expr
+e15 = EGroup
+        ["Ciudad"]
+        [(Count,"Nombre")]
+        (ERelacion "Personas")
+
+e5 :: Expr
+e5 = ESeleccion
+        (POr
+          (PGt "Edad" (VInt 18))
+          (PLt "Edad" (VInt 10))
+        )
+        (ERelacion "Personas")

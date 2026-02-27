@@ -82,9 +82,40 @@ data GroupOp = Count
 -- Comandos del interprete:
 
 
+
+type NombreRel = String
+type NombreOp  = String
+
 -- Mapa de nombres de relaciones a relaciones
-type Context = Map.Map String Relacion         
+type EnvRel = Map.Map NombreRel Relacion         
 
--- Mapa de macros/vistas definidas por el usuario
-type MacroContext = Map.Map String Expr
+-- Mapa de operaciones definidas por el usuario
+type EnvOp  = Map.Map NombreOp Expr
 
+
+data Context = Context
+  { relaciones    :: EnvRel  -- Base de datos (relaciones cargadas)
+  , operaciones   :: EnvOp   -- Vistas definidas por el usuario
+  }
+
+data State = S
+  { inter :: Bool
+  ,       -- True, si estamos en modo interactivo.
+    lfile :: String
+  ,     -- Ultimo archivo cargado (para hacer "reload")
+    ctxt    :: Context  -- Entorno con variables globales y su valor  [(Name, (Value, Type))]
+  }
+
+
+emptyContext :: Context
+emptyContext =  Context
+  { relaciones  = Map.empty
+  , operaciones = Map.empty
+  }
+
+data Error
+  = RelacionNoExiste NombreRel
+  | OperacionNoExiste NombreOp
+  | EsquemaIncompatible
+  | AtributoNoExiste Atributo
+  deriving Show

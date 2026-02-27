@@ -1,0 +1,8 @@
+def rel = R(
+  {Nombre, Color, Edad},
+  {
+    {Nombre="Ana", Color="Rojo", Edad=20},
+    {Nombre="Luis", Color="Azul", Edad=22}
+  },
+  "Tuti-Frutti"
+)
