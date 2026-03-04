@@ -6,10 +6,11 @@ import Data.Char
 
 
 
-
-%name parseExpr
+%name parseTop
 %tokentype { Token }
+
 %error { parseError }
+%monad { Either String } { >>= } { return }
 
 %token
     -- Operaciones unarias:
@@ -33,8 +34,10 @@ import Data.Char
     and         { TAnd }
     or          { TOr }
     not         { TNot }
+
     true        { TTrue }
     false       { TFalse }
+
     '='         { TEq }
     '!='        { TNeq }
     '<'         { TLt }
@@ -47,6 +50,13 @@ import Data.Char
     avg         { TAvg }
     min         { TMin }
     max         { TMax }
+
+    -- Para comandos: 
+    create      { TCreate }
+    insert      { TInsert }
+    drop        { TDrop }
+    quit        { TQuit }
+    help        { THelp }
 
     '('         { TLParen }
     ')'         { TRParen }
@@ -82,6 +92,32 @@ import Data.Char
 -- Prioridad baja: Union, Interseccion, Diferencia
 -- Prioridad media: Producto, Division
 -- Prioridad alta: OpUnarias
+
+-- Para manejar comandos:
+Top
+    : Expr                           { TLExpr $1 }
+    | ident '=' Expr                 { TLAssign $1 $3 }
+    | create ident AttrList          { TLCreateRel $2 $3 }
+    | insert ident TupleList         { TLInsertRel $2 $3 }
+    | drop ident                     { TLDropRel $2 }
+    | quit                           { TLQuit }
+    | help                           { TLHelp }
+
+-- Para las tuplas
+TupleList
+    : Tuple                          { [$1] }
+    | TupleList ';' Tuple            { $1 ++ [$3] }
+
+Tuple
+    : '(' ValueList ')'              { $2 }
+
+ValueList
+    : Value                          { [$1] }
+    | ValueList ',' Value            { $1 ++ [$3] }
+
+
+
+-- Para Expresiones
 Expr
     : BinExpr { $1 }
 
@@ -154,9 +190,9 @@ Value
 
 
 {
-parseError :: [Token] -> a
-parseError tokens = error ("Error en parser: " ++ show tokens)
-
+parseError :: [Token] -> Either String a
+parseError tokens =
+  Left ("Error de sintaxis durante el parseo. Vuelva a escribir lo que queria...")
 -------------------------------------------------------------
 -- Lexer
 -------------------------------------------------------------
@@ -198,52 +234,66 @@ data Token
     | TIdentifier String
     | TInt Int
     | TString String
+
+    -- Para Interprete:
+    | TLExpr
+    | TLAssign
+    | TLCreateRel
+    | TLInsertRel
+    | TLDropRel
+    | TLQuit
+    | TLHelp
     deriving (Show, Eq)
 
 
-lexer :: String -> [Token]
-lexer [] = []
+
+
+
+
+lexer :: String -> Either String [Token]
+lexer [] = Right []
 lexer (c:cs)
 
-    -- Ignorar espacios
-    | isSpace c = lexer cs
+  | isSpace c = lexer cs
 
-    -- Símbolos simples
-    | c == '('  = TLParen  : lexer cs
-    | c == ')'  = TRParen  : lexer cs
-    | c == '['  = TLBracket: lexer cs
-    | c == ']'  = TRBracket: lexer cs
-    | c == ','  = TComma   : lexer cs
-    | c == ';'  = TSemicolon : lexer cs
-    | c == '='  = TEq      : lexer cs
-    | c == '<'  = TLt      : lexer cs
-    | c == '>'  = TGt      : lexer cs
+  | c == '('  = add TLParen
+  | c == ')'  = add TRParen
+  | c == '['  = add TLBracket
+  | c == ']'  = add TRBracket
+  | c == ','  = add TComma
+  | c == ';'  = add TSemicolon
+  | c == '='  = add TEq
+  | c == '<'  = add TLt
+  | c == '>'  = add TGt
 
-    -- Operador ->
-    | c == '-' && not (null cs) && head cs == '>'
-        = TArrow : lexer (tail cs)
+  | c == '-' && not (null cs) && head cs == '>'
+    = prepend TArrow (tail cs)
 
-    -- Operador !=
-    | c == '!' && not (null cs) && head cs == '='
-        = TNeq : lexer (tail cs)
+  | c == '!' && not (null cs) && head cs == '='
+      = prepend TNeq (tail cs)
 
-    -- Números
-    | isDigit c =
-        let (num, rest) = span isDigit (c:cs)
-        in TInt (read num) : lexer rest
+  | isDigit c =
+      let (num, rest) = span isDigit (c:cs)
+      in prepend (TInt (read num)) rest
 
-    -- Strings entre comillas
-    | c == '"' =
-        let (str, rest) = span (/= '"') cs
-        in TString str : lexer (tail rest)
+  | c == '"' =
+      case span (/= '"') cs of
+        (str, '"':rest) -> prepend (TString str) rest
+        _ -> Left "String sin cerrar"
 
-    -- Identificadores o palabras reservadas
-    | isAlpha c =
-        let (word, rest) = span isAlphaNum (c:cs)
-        in keyword word : lexer rest
+  | isAlpha c =
+      let (word, rest) = span isAlphaNum (c:cs)
+      in prepend (keyword word) rest
 
-    | otherwise = error ("Caracter inesperado: " ++ [c])
+  | otherwise = Left ("Caracter inesperado: " ++ [c])
 
+  where
+    add tok = prepend tok cs
+
+    prepend tok rest =
+      case lexer rest of
+        Left err -> Left err
+        Right ts -> Right (tok : ts)
 
 keyword :: String -> Token
 keyword w = case w of
@@ -271,8 +321,11 @@ keyword w = case w of
     "null"        -> TNull
     _             -> TIdentifier w
 
-parse :: String -> Expr
-parse = parseExpr . lexer
+
+
+parse :: String -> Either String Expr
+parse input = do
+  toks <- lexer input
+  parseTop toks
+
 }
-
-

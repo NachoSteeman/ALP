@@ -39,6 +39,12 @@ library:
     - base >= 4.7 && < 5
     - containers
     - array # Porque Happy lo usa al crear el parser.
+    - mtl
+    - haskeline
+    - exceptions
+    - directory
+    - pretty
+    - transformers
 executables:
   TP-AR-exe:
     main:                Main.hs
@@ -50,6 +56,12 @@ executables:
     dependencies:
     - TP-AR
     - containers
+    - mtl
+    - haskeline
+    - exceptions
+    - directory
+    - pretty
+    - transformers
 tests:
   TP-AR-test:
     main:                Spec.hs
@@ -60,3 +72,4 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - TP-AR
+

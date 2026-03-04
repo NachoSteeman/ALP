@@ -115,7 +115,21 @@ emptyContext =  Context
 
 data Error
   = RelacionNoExiste NombreRel
+  | RelacionYaExiste NombreRel
   | OperacionNoExiste NombreOp
   | EsquemaIncompatible
   | AtributoNoExiste Atributo
+  | OperacionYaExiste NombreOp
   deriving Show
+
+
+-- Para poder parsear comandos
+data TopLevel
+  = TLExpr Expr
+  | TLAssign NombreRel Expr
+  | TLCreateRel NombreRel [Atributo]
+  | TLInsertRel NombreRel [[Valor]]
+  | TLDropRel NombreRel
+  | TLQuit
+  | TLHelp
+  deriving (Eq, Show)

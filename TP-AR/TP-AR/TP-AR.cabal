@@ -42,12 +42,12 @@ library
       array
     , base >=4.7 && <5
     , containers
-    , mtl
-    , haskeline
+    , directory
     , exceptions
+    , haskeline
+    , mtl
     , pretty
     , transformers
-    , directory
   default-language: Haskell2010
 
 executable TP-AR-exe
@@ -63,12 +63,12 @@ executable TP-AR-exe
       TP-AR
     , base >=4.7 && <5
     , containers
-    , mtl 
-    , haskeline
+    , directory
     , exceptions
+    , haskeline
+    , mtl
     , pretty
     , transformers
-    , directory
   default-language: Haskell2010
 
 test-suite TP-AR-test

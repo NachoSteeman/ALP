@@ -967,38 +967,24 @@ happyNewToken action sts stk (tk:tks) =
 happyError_ explist 50 tk tks = happyError' (tks, explist)
 happyError_ explist _ tk tks = happyError' ((tk:tks), explist)
 
-newtype HappyIdentity a = HappyIdentity a
-happyIdentity = HappyIdentity
-happyRunIdentity (HappyIdentity a) = a
-
-instance Functor HappyIdentity where
-    fmap f (HappyIdentity a) = HappyIdentity (f a)
-
-instance Applicative HappyIdentity where
-    pure  = HappyIdentity
-    (<*>) = ap
-instance Monad HappyIdentity where
-    return = pure
-    (HappyIdentity p) >>= q = q p
-
-happyThen :: () => HappyIdentity a -> (a -> HappyIdentity b) -> HappyIdentity b
+happyThen :: () => Either String a -> (a -> Either String b) -> Either String b
 happyThen = (>>=)
-happyReturn :: () => a -> HappyIdentity a
+happyReturn :: () => a -> Either String a
 happyReturn = (return)
 happyThen1 m k tks = (>>=) m (\a -> k a tks)
-happyReturn1 :: () => a -> b -> HappyIdentity a
+happyReturn1 :: () => a -> b -> Either String a
 happyReturn1 = \a tks -> (return) a
-happyError' :: () => ([(Token)], [String]) -> HappyIdentity a
-happyError' = HappyIdentity . (\(tokens, _) -> parseError tokens)
-parseExpr tks = happyRunIdentity happySomeParser where
+happyError' :: () => ([(Token)], [String]) -> Either String a
+happyError' = (\(tokens, _) -> parseError tokens)
+parseExpr tks = happySomeParser where
  happySomeParser = happyThen (happyParse action_0 tks) (\x -> case x of {HappyAbsSyn4 z -> happyReturn z; _other -> notHappyAtAll })
 
 happySeq = happyDontSeq
 
 
-parseError :: [Token] -> a
-parseError tokens = error ("Error en parser: " ++ show tokens)
-
+parseError :: [Token] -> Either String a
+parseError tokens =
+  Left ("Error de sintaxis durante el parseo. Vuelva a escribir lo que queria...")
 -------------------------------------------------------------
 -- Lexer
 -------------------------------------------------------------
@@ -1043,49 +1029,54 @@ data Token
     deriving (Show, Eq)
 
 
-lexer :: String -> [Token]
-lexer [] = []
+
+
+
+
+lexer :: String -> Either String [Token]
+lexer [] = Right []
 lexer (c:cs)
 
-    -- Ignorar espacios
-    | isSpace c = lexer cs
+  | isSpace c = lexer cs
 
-    -- Símbolos simples
-    | c == '('  = TLParen  : lexer cs
-    | c == ')'  = TRParen  : lexer cs
-    | c == '['  = TLBracket: lexer cs
-    | c == ']'  = TRBracket: lexer cs
-    | c == ','  = TComma   : lexer cs
-    | c == ';'  = TSemicolon : lexer cs
-    | c == '='  = TEq      : lexer cs
-    | c == '<'  = TLt      : lexer cs
-    | c == '>'  = TGt      : lexer cs
+  | c == '('  = add TLParen
+  | c == ')'  = add TRParen
+  | c == '['  = add TLBracket
+  | c == ']'  = add TRBracket
+  | c == ','  = add TComma
+  | c == ';'  = add TSemicolon
+  | c == '='  = add TEq
+  | c == '<'  = add TLt
+  | c == '>'  = add TGt
 
-    -- Operador ->
-    | c == '-' && not (null cs) && head cs == '>'
-        = TArrow : lexer (tail cs)
+  | c == '-' && not (null cs) && head cs == '>'
+    = prepend TArrow (tail cs)
 
-    -- Operador !=
-    | c == '!' && not (null cs) && head cs == '='
-        = TNeq : lexer (tail cs)
+  | c == '!' && not (null cs) && head cs == '='
+      = prepend TNeq (tail cs)
 
-    -- Números
-    | isDigit c =
-        let (num, rest) = span isDigit (c:cs)
-        in TInt (read num) : lexer rest
+  | isDigit c =
+      let (num, rest) = span isDigit (c:cs)
+      in prepend (TInt (read num)) rest
 
-    -- Strings entre comillas
-    | c == '"' =
-        let (str, rest) = span (/= '"') cs
-        in TString str : lexer (tail rest)
+  | c == '"' =
+      case span (/= '"') cs of
+        (str, '"':rest) -> prepend (TString str) rest
+        _ -> Left "String sin cerrar"
 
-    -- Identificadores o palabras reservadas
-    | isAlpha c =
-        let (word, rest) = span isAlphaNum (c:cs)
-        in keyword word : lexer rest
+  | isAlpha c =
+      let (word, rest) = span isAlphaNum (c:cs)
+      in prepend (keyword word) rest
 
-    | otherwise = error ("Caracter inesperado: " ++ [c])
+  | otherwise = Left ("Caracter inesperado: " ++ [c])
 
+  where
+    add tok = prepend tok cs
+
+    prepend tok rest =
+      case lexer rest of
+        Left err -> Left err
+        Right ts -> Right (tok : ts)
 
 keyword :: String -> Token
 keyword w = case w of
@@ -1113,8 +1104,12 @@ keyword w = case w of
     "null"        -> TNull
     _             -> TIdentifier w
 
-parse :: String -> Expr
-parse = parseExpr . lexer
+
+
+parse :: String -> Either String Expr
+parse input = do
+  toks <- lexer input
+  parseExpr toks
 {-# LINE 1 "templates/GenericTemplate.hs" #-}
 -- $Id: GenericTemplate.hs,v 1.26 2005/01/14 14:47:22 simonmar Exp $
 

@@ -51,3 +51,4 @@ instance MonadState StateError where
 
   modify f =
     StateError (\st -> Right ((), f st))
+
