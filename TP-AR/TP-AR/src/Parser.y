@@ -6,7 +6,8 @@ import Data.Char
 
 
 
-%name parseTop
+
+%name parseExpr
 %tokentype { Token }
 
 %error { parseError }
@@ -34,10 +35,8 @@ import Data.Char
     and         { TAnd }
     or          { TOr }
     not         { TNot }
-
     true        { TTrue }
     false       { TFalse }
-
     '='         { TEq }
     '!='        { TNeq }
     '<'         { TLt }
@@ -50,13 +49,6 @@ import Data.Char
     avg         { TAvg }
     min         { TMin }
     max         { TMax }
-
-    -- Para comandos: 
-    create      { TCreate }
-    insert      { TInsert }
-    drop        { TDrop }
-    quit        { TQuit }
-    help        { THelp }
 
     '('         { TLParen }
     ')'         { TRParen }
@@ -92,32 +84,6 @@ import Data.Char
 -- Prioridad baja: Union, Interseccion, Diferencia
 -- Prioridad media: Producto, Division
 -- Prioridad alta: OpUnarias
-
--- Para manejar comandos:
-Top
-    : Expr                           { TLExpr $1 }
-    | ident '=' Expr                 { TLAssign $1 $3 }
-    | create ident AttrList          { TLCreateRel $2 $3 }
-    | insert ident TupleList         { TLInsertRel $2 $3 }
-    | drop ident                     { TLDropRel $2 }
-    | quit                           { TLQuit }
-    | help                           { TLHelp }
-
--- Para las tuplas
-TupleList
-    : Tuple                          { [$1] }
-    | TupleList ';' Tuple            { $1 ++ [$3] }
-
-Tuple
-    : '(' ValueList ')'              { $2 }
-
-ValueList
-    : Value                          { [$1] }
-    | ValueList ',' Value            { $1 ++ [$3] }
-
-
-
--- Para Expresiones
 Expr
     : BinExpr { $1 }
 
@@ -234,15 +200,6 @@ data Token
     | TIdentifier String
     | TInt Int
     | TString String
-
-    -- Para Interprete:
-    | TLExpr
-    | TLAssign
-    | TLCreateRel
-    | TLInsertRel
-    | TLDropRel
-    | TLQuit
-    | TLHelp
     deriving (Show, Eq)
 
 
@@ -281,8 +238,8 @@ lexer (c:cs)
         (str, '"':rest) -> prepend (TString str) rest
         _ -> Left "String sin cerrar"
 
-  | isAlpha c =
-      let (word, rest) = span isAlphaNum (c:cs)
+  | isAlpha c || c == '_' =
+      let (word, rest) = span (\x -> isAlphaNum x || x == '_') (c:cs)
       in prepend (keyword word) rest
 
   | otherwise = Left ("Caracter inesperado: " ++ [c])
@@ -326,6 +283,6 @@ keyword w = case w of
 parse :: String -> Either String Expr
 parse input = do
   toks <- lexer input
-  parseTop toks
+  parseExpr toks
 
 }

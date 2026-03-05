@@ -1,4 +1,18 @@
-module Utils where
+module Utils
+( seleccion,
+  union,
+  diferencia,
+  productoCartesiano,
+  renombramiento,
+  proyeccion,
+  renombramiento,
+  naturalJoin,
+  division
+
+
+
+) where
+
 -- Operaciones Fundamentales:
 
 import qualified Data.Map as Map
@@ -6,206 +20,221 @@ import qualified Data.Set as Set
 
 import AST 
 
-import Data.List (intercalate) -- Viene de intercalete.
+import Data.List (intercalate, nub)
 
--- OpUnarias:
+-- =========================================================
+-- SELECCION
+-- =========================================================
+
 seleccion :: Relacion -> Cond -> Relacion
 seleccion (R a t n) c =  R a (Set.filter (filtrarCond c) t) n
 
 filtrarCond :: Cond -> Tupla -> Bool
 filtrarCond c t = case c of 
-    
-    PTrue  -> True
 
+    PTrue  -> True
     PFalse -> False
     
-    PEq a v -> case Map.lookup a t of 
-                      Just val -> v == val
-                      Nothing  -> False 
+    PEq a v ->
+        case Map.lookup a t of 
+            Just val -> compararIgual val v
+            Nothing  -> False 
 
-    PNeq    a v   -> case Map.lookup a t of
-                        Nothing  -> False
-                        Just val -> v /= val
+    PNeq a v ->
+        case Map.lookup a t of
+            Just val -> not (compararIgual val v)
+            Nothing  -> False
 
-    PLt     a v   -> case Map.lookup a t of
-                        Nothing  -> False
-                        Just val -> val < v  
-                        
-    PGt     a v   -> case Map.lookup a t of
-                        Nothing  -> False
-                        Just val -> val > v
+    PLt a v ->
+        case Map.lookup a t of
+            Just val -> compararValor (<) val v
+            Nothing  -> False
+
+    PGt a v ->
+        case Map.lookup a t of
+            Just val -> compararValor (>) val v
+            Nothing  -> False
     
-    PAttrEq a0 a1 -> case Map.lookup a0 t of
-                        Nothing  -> False
-                        Just val0 -> case Map.lookup a1 t of
-                                     Nothing  -> False
-                                     Just val1 -> val1 == val0
+    PAttrEq a0 a1 ->
+        case (Map.lookup a0 t, Map.lookup a1 t) of
+            (Just v0, Just v1) -> compararIgual v0 v1
+            _ -> False
 
-    PAnd    c0 c1 -> let cond0  = filtrarCond c0 t
-                         cond1  = filtrarCond c1 t
-                     in cond1 && cond0  
+    PAnd c0 c1 ->
+        filtrarCond c0 t && filtrarCond c1 t
 
-    POr     c0 c1 -> let cond0  = filtrarCond c0 t
-                         cond1 = filtrarCond c1 t
-                     in cond1 || cond0
+    POr c0 c1 ->
+        filtrarCond c0 t || filtrarCond c1 t
 
-    PNot       c  -> not (filtrarCond c t)
+    PNot c ->
+        not (filtrarCond c t)
 
+compararValor :: (Int -> Int -> Bool) -> Valor -> Valor -> Bool
+compararValor f (VInt x) (VInt y) = f x y
+compararValor _ _ _ = False
+
+compararIgual :: Valor -> Valor -> Bool
+compararIgual (VInt x) (VInt y) = x == y
+compararIgual (VString x) (VString y) = x == y
+compararIgual (VBool x) (VBool y) = x == y
+compararIgual VNull VNull = True
+compararIgual _ _ = False
+
+-- =========================================================
+-- UNION
+-- =========================================================
 
 union :: Relacion -> Relacion -> Either String Relacion
-union (R a0 t0 n0) (R a1 t1 n1) = if a0 == a1 then return (R a0 (Set.union t0 t1) (n0 ++ "U" ++ n1)) 
-                                        else Left "Atributos no compatibles"
+union (R a0 t0 n0) (R a1 t1 n1)
+    | a0 == a1  = Right (R a0 (Set.union t0 t1) (n0 ++ "U" ++ n1))
+    | otherwise = Left "Atributos no compatibles"
 
-diferencia :: Relacion -> Relacion -> Either Err Relacion 
-diferencia (R a0 t0 n0)(R a1 t1 n1) = if a0 == a1 then return (R a0  (Set.difference t0 t1) (n0 ++ "-" ++ n1))
-                                            else Left "Error en la diferencia: atributos no compatibles"
+-- =========================================================
+-- DIFERENCIA
+-- =========================================================
 
+diferencia :: Relacion -> Relacion -> Either String Relacion 
+diferencia (R a0 t0 n0) (R a1 t1 n1)
+    | a0 == a1  = Right (R a0 (Set.difference t0 t1) (n0 ++ "-" ++ n1))
+    | otherwise = Left "Error en la diferencia: atributos no compatibles"
 
-
+-- =========================================================
+-- PRODUCTO CARTESIANO
+-- =========================================================
 
 productoCartesiano :: Relacion -> Relacion -> Relacion
 productoCartesiano (R a0 t0 n0) (R a1 t1 n1) = 
-    let comunes = Set.intersection a0 a1  
+    let comunes = filter (`elem` a1) a0
+
         a0' = renombrarSoloComunes a0 n0 comunes
         a1' = renombrarSoloComunes a1 n1 comunes
+
         t0' = renombrarTuplasComunes t0 n0 comunes
         t1' = renombrarTuplasComunes t1 n1 comunes
-        a   = Set.union a0' a1'
-        t   = prodCartAux t0' t1' 
+
+        a   = nub (a0' ++ a1')
+
+        t   = prodCartAux t0' t1'
+
         n   = n0 ++ "*" ++ n1
+
     in R a t n
 
-renombrarSoloComunes :: Set.Set Atributo -> String -> Set.Set Atributo -> Set.Set Atributo
-renombrarSoloComunes as n comunes = 
-    Set.map (\s -> if s `Set.member` comunes then s ++ "-" ++ n else s) as
+renombrarSoloComunes :: [Atributo] -> String -> [Atributo] -> [Atributo]
+renombrarSoloComunes attrs nombre comunes =
+    map (\a -> if a `elem` comunes then a ++ "-" ++ nombre else a) attrs
 
-renombrarTuplasComunes :: Set.Set Tupla -> String -> Set.Set Atributo -> Set.Set Tupla
-renombrarTuplasComunes ts n comunes = 
-    Set.map (\tupla -> Map.mapKeys (\s -> if s `Set.member` comunes 
-                                          then s ++ "-" ++ n 
-                                          else s) tupla) ts
+renombrarTuplasComunes :: Set.Set Tupla -> String -> [Atributo] -> Set.Set Tupla
+renombrarTuplasComunes ts nombre comunes =
+    Set.map (\tupla ->
+        Map.mapKeys (\a ->
+            if a `elem` comunes
+                then a ++ "-" ++ nombre
+                else a
+        ) tupla
+    ) ts
+
 prodCartAux :: Set.Set Tupla -> Set.Set Tupla -> Set.Set Tupla
-prodCartAux setA setB = 
-    Set.fromList [ Map.union a  b | a <- Set.toList setA, b <- Set.toList setB ]
+prodCartAux setA setB =
+    Set.fromList
+        [ Map.union a b
+        | a <- Set.toList setA
+        , b <- Set.toList setB
+        ]
 
+-- =========================================================
+-- RENOMBRAMIENTO
+-- =========================================================
 
-
--- renombramiento: asignamos el nuevo nombre a la relacion, y renombramos sus atributos poniendo como prefijo el nombre de la misma
 renombramiento :: String -> Relacion -> Relacion
-renombramiento nuevoNombre (R a t n) =  let a' = Set.map (renombramientoAux nuevoNombre) a
-                                            t' = Set.map (\tup   -> Map.mapKeys (renombramientoAux nuevoNombre) tup) t
-                                            n' = nuevoNombre
-                                        in (R a' t' n')
+renombramiento nuevoNombre (R a t n) =
+    let a' = map (renombramientoAux nuevoNombre) a
+
+        t' = Set.map
+                (\tup -> Map.mapKeys (renombramientoAux nuevoNombre) tup)
+                t
+
+    in R a' t' nuevoNombre
 
 renombramientoAux :: String -> Atributo -> Atributo  
-renombramientoAux nuevoNombre atrib  = nuevoNombre ++ "." ++ atrib
+renombramientoAux nuevoNombre atrib =
+    nuevoNombre ++ "." ++ atrib
 
-
-
--- Ver                   
--- proyeccion :: [Atributo] -> Relacion -> Either Err Relacion 
--- proyeccion atributosProy (R a t n) = let a' = Set.difference a (Set.fromList atributosProy)
---                                          t' = Set.filter  (filtraTupla atributosProy) t 
---                                          n' = "Proy-"++ n
---                                      in (R a' t' n')
-
--- ============================================================================
--- ============================================================================
-
+-- =========================================================
+-- PROYECCION
+-- =========================================================
 
 proyeccion :: [Atributo] -> Relacion -> Either String Relacion 
-proyeccion atributosProy (R a t n) 
-    -- Validar que los atributos existen
-    | not (all (`Set.member` a) atributosProy) =
-        Left $ "Atributos no existentes: " ++ 
-               show (filter (`Set.notMember` a) atributosProy)
+proyeccion atributosProy (R a t n)
+
+    | not (all (`elem` a) atributosProy) =
+        Left ("Atributos no existentes: " ++ show (filter (`notElem` a) atributosProy))
+
     | otherwise =
-        let a' = Set.fromList atributosProy
+        let a' = atributosProy
+
             t' = Set.map (proyectarTupla atributosProy) t
+
             n' = "π[" ++ intercalate "," atributosProy ++ "](" ++ n ++ ")"
+
         in Right (R a' t' n')
 
--- Proyectar una tupla (mantener solo ciertas claves)
 proyectarTupla :: [Atributo] -> Tupla -> Tupla
-proyectarTupla attrs tupla = 
+proyectarTupla attrs tupla =
     Map.filterWithKey (\k _ -> k `elem` attrs) tupla
 
--- ============================================================================
--- ============================================================================
+-- =========================================================
+-- INTERSECCION
+-- =========================================================
 
+interseccion :: Relacion -> Relacion -> Either String Relacion
+interseccion r s = do
+    diff <- diferencia r s
+    diferencia r diff
 
+-- =========================================================
+-- JOIN NATURAL
+-- =========================================================
 
+naturalJoin :: Relacion -> Relacion -> Relacion
+naturalJoin (R a0 t0 n0) (R a1 t1 n1) =
 
+    let comunes = filter (`elem` a1) a0
 
--- Operaciones Extras:
-interseccion :: Relacion -> Relacion -> Either Err Relacion
-interseccion r s = do diff <- diferencia r s
-                      diferencia r diff
+        esquema = nub (a0 ++ a1)
 
-
--- Precondicion: r y s no tienen atributos en comun => ProdNat = ProdCart
-naturalJoin :: Relacion -> Relacion -> Either Err Relacion -- Ver tipos y si quiero que tire el error de la poyeccion o no... VER  
-naturalJoin r@(R a0 t0 n0) s@(R a1 t1 n1) = let atribUnion   = Set.toList (Set.union a0 a1)
-                                                atribComunes = Set.intersection a0 a1
-                                                cond         = armarCondicion atribComunes n0 n1
-                                                prod         = productoCartesiano r s 
-                                                temp         = seleccion prod cond
-                                             in proyeccion atribUnion temp  
-
--- Condicion: R.attr = S.attr para todos los atributos comunes
---PAnd ... (PAnd  ((PAttrEq Atributo Atributo) PTrue))
-
-agrupamiento = undefined
-
-armarCondicion :: Set.Set Atributo -> String -> String -> Cond
-armarCondicion comunes nombreR nombreS =
-    let pares = [(attr ++ "-" ++ nombreR, attr ++ "-" ++ nombreS) 
-                | attr <- Set.toList comunes]
-    in case pares of
-        []     -> PTrue
-        (a,b):rest -> foldr (\(x,y) acc -> PAnd (PAttrEq x y) acc) 
-                            (PAttrEq a b) 
-                            rest
-
--- ============================================================================
--- JOIN NATURAL (versión eficiente)
--- ============================================================================
-joinNatural :: Relacion -> Relacion -> Relacion
-joinNatural (R a0 t0 n0) (R a1 t1 n1) =
-    let comunes = Set.intersection a0 a1
-        esquema = Set.union a0 a1
-        
-        -- Tuplas compatibles en atributos comunes
         compatibles tupla0 tupla1 =
             all (\attr ->
                 Map.lookup attr tupla0 == Map.lookup attr tupla1
-            ) (Set.toList comunes)
-            
-        tuplas = Set.fromList
-            [ Map.union tupla0 tupla1
-            | tupla0 <- Set.toList t0
-            , tupla1 <- Set.toList t1
-            , compatibles tupla0 tupla1
-            ]
-        
+            ) comunes
+
+        tuplas =
+            Set.fromList
+                [ Map.union tupla0 tupla1
+                | tupla0 <- Set.toList t0
+                , tupla1 <- Set.toList t1
+                , compatibles tupla0 tupla1
+                ]
+
     in R esquema tuplas (n0 ++ " ⋈ " ++ n1)
--- ============================================================================
--- 
--- ============================================================================
 
-division :: Relacion -> Relacion -> Either Err Relacion
-division r@(R a0 t0 n0) s@(R a1 t1 n1) 
-    | not (Set.isSubsetOf a1 a0) = Left "Error en la Division: el divisior debe ser subconjunto del dividendo"
-    | otherwise = 
-    let atrib = Set.toList (Set.difference a0 a1)
-    in do
-        proy1 <- proyeccion atrib r
-        let prod = productoCartesiano proy1 s
-        diff  <- diferencia prod r
-        proy2 <- proyeccion atrib diff
-        diferencia proy1 proy2 
+-- =========================================================
+-- DIVISION
+-- =========================================================
+
+division :: Relacion -> Relacion -> Either String Relacion
+division r@(R a0 t0 n0) s@(R a1 t1 n1)
+
+    | not (all (`elem` a0) a1) =
+        Left "Error en la Division: el divisor debe ser subconjunto del dividendo"
+
+    | otherwise =
+        let atrib = filter (`notElem` a1) a0
+        in do
+            proy1 <- proyeccion atrib r
+            let prod = productoCartesiano proy1 s
+            diff  <- diferencia prod r
+            proy2 <- proyeccion atrib diff
+            diferencia proy1 proy2
 
 
-
-
--- Objetivo: hacer un interprete de AR

@@ -1064,8 +1064,8 @@ lexer (c:cs)
         (str, '"':rest) -> prepend (TString str) rest
         _ -> Left "String sin cerrar"
 
-  | isAlpha c =
-      let (word, rest) = span isAlphaNum (c:cs)
+  | isAlpha c || c == '_' =
+      let (word, rest) = span (\x -> isAlphaNum x || x == '_') (c:cs)
       in prepend (keyword word) rest
 
   | otherwise = Left ("Caracter inesperado: " ++ [c])

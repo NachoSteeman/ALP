@@ -61,7 +61,7 @@ evalExpr expr = case expr of
   ENaturalJoin e1 e2 -> do
     r1 <- evalExpr e1
     r2 <- evalExpr e2
-    return (joinNatural r1 r2)
+    return (naturalJoin r1 r2)
 
   EDiv e1 e2 -> do
     r1 <- evalExpr e1

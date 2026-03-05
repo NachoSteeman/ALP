@@ -18,7 +18,7 @@ type Tupla = Map.Map Atributo Valor
 
 -- Relacion: es un conjunto de Tuplas
 data Relacion = R {
-  atributos :: Set.Set Atributo, -- Nombre de las columnas
+  atributos ::  [Atributo], -- Nombre de las columnas, Listas para dejarlo fijo y mantener orden
   tuplas    :: Set.Set Tupla,    -- Filas
   nombre    :: String
 } deriving (Eq, Show)
@@ -117,19 +117,8 @@ data Error
   = RelacionNoExiste NombreRel
   | RelacionYaExiste NombreRel
   | OperacionNoExiste NombreOp
+  | OperacionYaExiste NombreOp
   | EsquemaIncompatible
   | AtributoNoExiste Atributo
-  | OperacionYaExiste NombreOp
+  | ErrorEvaluacion String -- Nuevo
   deriving Show
-
-
--- Para poder parsear comandos
-data TopLevel
-  = TLExpr Expr
-  | TLAssign NombreRel Expr
-  | TLCreateRel NombreRel [Atributo]
-  | TLInsertRel NombreRel [[Valor]]
-  | TLDropRel NombreRel
-  | TLQuit
-  | TLHelp
-  deriving (Eq, Show)

@@ -6,6 +6,8 @@ import           Control.Exception              ( catch
 
 import Control.Exception (evaluate) -- Eso fuerza la evaluación dentro del catch.
 
+import Text.Read (readMaybe)
+
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
@@ -60,12 +62,12 @@ readevalprint args state@(S inter lfile _) =
   let rec st = do
         mx <- MC.catch
           -- Leo y proceso entrada capturando excepciones de ser necesario
-          (if inter then getInputLine iprompt else lift $ fmap Just getLine)
+          (if inter then getInputLine iprompt
+                    else lift $ fmap Just getLine)
           (lift . ioExceptionCatcher)
         case mx of
           Nothing -> return ()
-          Just "" -> rec st
-          -- 
+          Just "" -> rec st 
           Just x  -> do
             c   <- interpretCommand x
             st' <- handleCommand st c
@@ -82,9 +84,33 @@ readevalprint args state@(S inter lfile _) =
 ---------------------------------------------------------------
 -- Interprerta los comandos que se escriben por consola:
 ---------------------------------------------------------------
+isAssignment :: String -> Bool
+isAssignment s =
+    let trimmed = trim s
+        hasEquals = '=' `elem` trimmed
+        beforeEquals = takeWhile (/= '=') trimmed
+        -- Es asignación si:
+        -- 1. Tiene '='
+        -- 2. Lo que está antes del '=' es un identificador simple (sin '[', '(', etc.)
+        -- 3. No empieza con ':'
+    in hasEquals 
+       && not (isPrefixOf ":" trimmed)
+       && all isValidIdChar beforeEquals
+       && not (null beforeEquals)
+  where
+    isValidIdChar c = c `elem` (['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++ "_") || isSpace c
+
 
 interpretCommand :: String -> InputT IO Command
-interpretCommand x = lift $ if isPrefixOf ":" x
+interpretCommand x = lift $ 
+  -- Detectar asignación: "nombre = expresion"
+  if isAssignment x
+  then do
+      let (name, rest) = break (== '=') x
+          exprStr = tail rest  -- Quitar el '='
+      return (AssignRel (trim name) (trim exprStr))
+
+  else if isPrefixOf ":" x
   -- Si tiene ":" como prefijo:
   then do
     let (cmd, t') = break isSpace x
@@ -105,16 +131,10 @@ interpretCommand x = lift $ if isPrefixOf ":" x
           ++ "."
           )
         return Noop
-  --else return (Compile (CompileInteractive x))
-  else
-    -- Para manejar las asignaciones
-   case break (== '=') x of
-     (lhs, '=':rhs) ->
-       let name = trim lhs
-           exprStr = trim rhs
-       in return (AssignRel name exprStr)
-     _ ->
-       return (Compile (CompileInteractive x))
+
+  -- Si no machea con ningun comando de la terminal:
+  else return (Compile (CompileInteractive x))
+
 
 
 ---------------------------------------------------------------
@@ -133,7 +153,7 @@ handleCommand state@(S inter lfile ctxt) cmd = case cmd of                -- VER
   Clear  -> lift $ putStr "\ESC[2J\ESC[H" >> return (Just state)
   
   Browse -> lift $ do
-    putStr (prettyContext ctxt )   -- VER
+    putStr (prettyContext ctxt )   -- VER (lift $) putStr ... ?
     return (Just state)
   
   Compile c -> do
@@ -170,7 +190,6 @@ handleCommand state@(S inter lfile ctxt) cmd = case cmd of                -- VER
           Right (_, newState) -> do
             lift $ putStrLn ("Operación `" ++ name ++ "` definida.")
             return (Just newState)
-
   
   CreateRel name attrs -> do
     case runStateError (createRel name attrs) state of
@@ -193,6 +212,7 @@ handleCommand state@(S inter lfile ctxt) cmd = case cmd of                -- VER
         lift $ putStrLn ("Tuplas agregadas a `" ++ name ++ "`.")
         return (Just newState)
 
+
   -- Para asignar relaciones:
   AssignRel name exprStr -> do
     mx <- parseIO "<assign>" exprStr
@@ -206,8 +226,9 @@ handleCommand state@(S inter lfile ctxt) cmd = case cmd of                -- VER
           Right (_, newState) -> do
             lift $ putStrLn ("Relación `" ++ name ++ "` definida.")
             return (Just newState)
+  
 
-  -- Para eliminar relaciones:
+-- Para eliminar relaciones:
   DropRel name ->
     case runStateError (dropRel name) state of
       Left err -> do
@@ -217,6 +238,97 @@ handleCommand state@(S inter lfile ctxt) cmd = case cmd of                -- VER
         lift $ putStrLn ("Relación `" ++ name ++ "` eliminada.")
         return (Just newState)
 
+  _ -> do
+        lift $ putStrLn "Comando no implementado."
+        return (Just state)
+
+
+---------------------------------------------------------------
+-- Operaciones para el contexto:
+---------------------------------------------------------------
+insertTupla :: [Atributo] -> [Valor] -> Either String Tupla
+insertTupla attrs vals
+    | length attrs /= length vals =
+        Left "Cantidad de valores no coincide con atributos"
+    | otherwise =
+        Right $ Map.fromList (zip attrs vals)
+
+insertar :: Relacion -> [[Valor]] -> Either String Relacion
+insertar (R attrs ts nom) filas = do
+    nuevas <- mapM (insertTupla attrs) filas
+    let ts' = Set.union ts (Set.fromList nuevas)
+    return (R attrs ts' nom)
+
+-- Para manejar definicion de operaciones:
+
+defineOp :: NombreOp -> Expr -> StateError ()
+defineOp name expr = do
+  st <- get
+  let c       = ctxt st
+      ops     = operaciones c
+      
+  when (Map.member name ops) $
+      throw (OperacionYaExiste name)
+  
+  let newOps  = Map.insert name expr ops
+      newCtxt = c { operaciones = newOps }
+      
+  put st { ctxt = newCtxt }
+
+
+-- Para crear una relacion:
+
+createRel :: NombreRel -> [Atributo] -> StateError ()
+createRel name attrs = do
+  st <- get
+  let c     = ctxt st
+      rels  = relaciones c
+
+  when (Map.member name rels) $
+    throw (RelacionYaExiste name)
+
+  let nuevaRel = R attrs Set.empty name
+      newRels  = Map.insert name nuevaRel rels
+      newCtxt  = c { relaciones = newRels }
+
+  put st { ctxt = newCtxt }
+
+
+insertRel :: NombreRel -> [[String]] -> StateError ()
+insertRel name rawTuplas = do
+  st <- get
+  let c     = ctxt st
+      rels  = relaciones c
+
+  case Map.lookup name rels of
+    Nothing -> throw (RelacionNoExiste name)
+
+    Just (R attrs oldTups rname) -> do
+
+      let attrList =  attrs
+          -- Validar longitud:
+          valid = all (\vals -> length vals == length attrList) rawTuplas
+      
+      when (not valid) $ throw EsquemaIncompatible
+
+      -- Construir Tuplas reales
+      let newTuplas = map (\vals ->
+                                    Map.fromList $ zip attrList (map parseValor vals)) rawTuplas
+
+          newRel  = R attrs (Set.union oldTups (Set.fromList newTuplas)) rname
+          newRels = Map.insert name newRel rels
+          newCtxt = c { relaciones = newRels }
+      put st { ctxt = newCtxt }
+
+
+parseValor :: String -> Valor
+parseValor s
+  | map toLower s == "true"  = VBool True
+  | map toLower s == "false" = VBool False
+  | map toLower s == "null"  = VNull
+  | otherwise =  case (readMaybe s) of
+                    Just n  ->  VInt n
+                    Nothing ->  VString s
 
 dropRel :: NombreRel -> StateError ()
 dropRel name = do
@@ -238,15 +350,22 @@ assignRel name expr = do
   st  <- get
   let c     = ctxt st
       rels  = relaciones c
-
-  -- insertamos o reemplazamos
-  let newRel  = rel { nombre = name }
+      -- insertamos o reemplazamos:
+      newRel  = rel { nombre = name }
       newRels = Map.insert name newRel rels
       newCtxt = c { relaciones = newRels }
-
   put st { ctxt = newCtxt }
 
 
+execute :: Expr -> State -> IO State
+execute expr st =
+  case runStateError (evalExpr expr) st of
+    Left err -> do
+      putStrLn ("Error: " ++ show err)
+      return st
+    Right (rel, newSt) -> do
+      putStrLn (prettyRelacion rel)
+      return newSt
 
 
 parseIO :: String -> String -> InputT IO (Maybe Expr)
@@ -266,7 +385,7 @@ parseIO msj input =
 
 helpTxt :: [InteractiveCommand] -> String
 helpTxt cs =
-  "Lista de comandos: commands Cualquier comando puede ser abreviado a :c donde\n"
+  "Lista de comandos:  Cualquier comando puede ser abreviado a :c donde\n"
     ++ "c es el primer caracter del nombre completo.\n\n"
     ++ "<expr>                  evaluar la expresión\n"
     ++ "def <var> = <expr>      definir una variable\n"
@@ -286,28 +405,22 @@ helpTxt cs =
 
 commands :: [InteractiveCommand]
 commands =
-  [
-  -- Para trabajar con archivos:
-   Cmd [":load"]
+  [ Cmd [":browse"] "" (const Browse) "Ver los nombres en scope"
+  , Cmd [":load"]
         "<file>"
         (Compile . CompileFile)
         "Cargar un programa desde un archivo"
+  
+  , Cmd [":clear"] "" (const Clear) "Limpia la consola" 
+
   , Cmd [":reload"]
         "<file>"
         (const Recompile)
         "Volver a cargar el último archivo"
-
-  -- Para trabajar en el interprete:
   , Cmd [":quit"]       ""       (const Quit) "Salir del intérprete"
   , Cmd [":help", ":?"] ""       (const Help) "Mostrar esta lista de comandos"
-  , Cmd [":clear"] "" (const Clear) "Limpia la consola" 
-
-
-  , Cmd [":browse"] "" (const Browse) "Ver los nombres en scope"
   , Cmd [":type"]       "<term>" (FindExpr)   "Inferir el tipo de un término"
 
-
-  -- Para definir un nuevo operador
   , Cmd [":defineOP"]  
         "<name> <expr>" 
         (\s ->
@@ -326,6 +439,7 @@ commands =
           in CreateRel name attrs
         )
         "Crea una relacion con sus atributos"
+
   , Cmd [":insertRel"] 
         "<name> <tups>"   
         (\s ->
@@ -335,12 +449,15 @@ commands =
            in InsertRel name tups
         )
          "Agrega tuplas a una relacion"
-
+  
   , Cmd [":dropRel"]
       "<name>"
       (\s -> DropRel (trim s))
       "Elimina una relación"
   ]
+
+
+
 
 splitOn :: Char -> String -> [String]
 splitOn _ [] = [""]
@@ -351,11 +468,8 @@ splitOn delim (c:cs)
     rest = splitOn delim cs
 
 
-parseAttrs :: String -> Set.Set Atributo
-parseAttrs s =
-  Set.fromList $
-    map trim $
-      splitOn ',' s
+parseAttrs :: String ->  [Atributo]
+parseAttrs s = map trim (splitOn ',' s)
 
 parseTuplas :: String -> [[String]]
 parseTuplas s =
@@ -370,9 +484,6 @@ parseOneTuple t =
 trim :: String -> String
 trim = f . f
   where f = reverse . dropWhile isSpace
-
-
-
 
 
 
@@ -437,105 +548,15 @@ it = "it"
 
 
 
----------------------------------------------------------------
--- Para manejar definicion de operaciones
----------------------------------------------------------------
-
-defineOp :: NombreOp -> Expr -> StateError ()
-defineOp name expr = do
-  st <- get
-  let c       = ctxt st
-      ops     = operaciones c
-      
-  when (Map.member name ops) $
-      throw (OperacionYaExiste name)
-  
-  let newOps  = Map.insert name expr ops
-      newCtxt = c { operaciones = newOps }
-      
-  put st { ctxt = newCtxt }
-
-execute :: Expr -> State -> IO State
-execute expr st =
-  case runStateError (evalExpr expr) st of
-    Left err -> do
-      putStrLn ("Error: " ++ show err)
-      return st
-    Right (rel, newSt) -> do
-      putStrLn (prettyRelacion rel)
-      return newSt
-
----------------------------------------------------------------
--- Para crear una relacion
----------------------------------------------------------------
-createRel :: NombreRel -> Set.Set Atributo -> StateError ()
-createRel name attrs = do
-  st <- get
-  let c     = ctxt st
-      rels  = relaciones c
-
-  when (Map.member name rels) $
-    throw (RelacionYaExiste name)
-
-  let nuevaRel = R attrs Set.empty name
-      newRels  = Map.insert name nuevaRel rels
-      newCtxt  = c { relaciones = newRels }
-
-  put st { ctxt = newCtxt }
 
 
--- handleCommand
---    ↓
--- runStateError
---    ↓
--- StateError (get / put / throw)
 
----------------------------------------------------------------
--- Para insertar tuplas en una relacion
----------------------------------------------------------------
---insertRel :: NombreRel -> Set.Set Tupla -> StateError ()
---insertRel name tups = do
---  st <- get
---  let c     = ctxt st
---      rels  = relaciones c
---
---  case Map.lookup name rels of
---    Nothing ->
---      throw (RelacionNoExiste name)
---
---    Just rel@(R attrs oldTups rname) -> do
---
---      -- opcional: validar que las tuplas coincidan en atributos
---
---      let newRel  = R attrs (Set.union oldTups tups) rname
---          newRels = Map.insert name newRel rels
---          newCtxt = c { relaciones = newRels }
---
---      put st { ctxt = newCtxt }
 
-insertRel :: NombreRel -> [[Valor]] -> StateError ()
-insertRel name rawTuplas = do
-  st <- get
-  let c = ctxt st
-      rels = relaciones c
 
-  case Map.lookup name rels of
-    Nothing -> throw (RelacionNoExiste name)
 
-    Just (R attrs oldTups rname) -> do
-      let attrList = Set.toList attrs
 
-      when (any (\vals -> length vals /= length attrList) rawTuplas) $
-        throw EsquemaIncompatible
 
-      let newTuplas =
-            map (\vals -> Map.fromList (zip attrList vals))
-                rawTuplas
 
-      let newRel = R attrs (Set.union oldTups (Set.fromList newTuplas)) rname
-          newRels = Map.insert name newRel rels
-
-      put st { ctxt = c { relaciones = newRels } }
 
 
 
@@ -546,21 +567,24 @@ insertRel name rawTuplas = do
 ---------------------------------------------------------------
 data InteractiveCommand = Cmd [String] String (String -> Command) String
 
-data Command = Compile CompileForm
+data Command = -- Para comandos consola:
+              Compile CompileForm
               | Clear
               | Recompile
               | Browse
               | Quit
               | Help
               | Noop
+
+              -- 
               | FindExpr String
               | DefineOP NombreOp String
-              | CreateRel NombreRel (Set.Set Atributo) 
+       
+              -- Para trabajar con mis relaciones:
+              | CreateRel NombreRel  [Atributo] 
               | InsertRel NombreRel [[String]]
+              | DropRel NombreRel 
               | AssignRel NombreRel String
-              | DropRel   NombreRel
-              | EvalTop   String -- Ver
-
 
 data CompileForm = CompileInteractive  String
                   | CompileFile         String

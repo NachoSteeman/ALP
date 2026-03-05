@@ -2,6 +2,7 @@ module Monads where
 
 import AST
 import Control.Monad -- Para ap
+
 newtype StateError a = StateError {runStateError ::  State -> Either Error (a, State) }
 
 instance Functor StateError where
@@ -17,12 +18,14 @@ instance Applicative StateError where
 
 instance Monad StateError where 
   return a = StateError (\s-> Right (a, s))
+  
   (StateError g) >>= f =
     StateError $ \st ->
       case g st of
         Left err        -> Left err
-        Right (a, st')  ->
-          runStateError (f a) st'
+        Right (a, st')  -> runStateError (f a) st'
+
+
 
 
 
@@ -43,12 +46,9 @@ class Monad m => MonadState m where
   modify :: (State -> State) -> m ()
 
 instance MonadState StateError where
-  get =
-    StateError (\st -> Right (st, st))
+  get          = StateError (\st -> Right (st, st))
 
-  put newState =
-    StateError (\_ -> Right ((), newState))
+  put newState = StateError (\_ -> Right ((), newState))
 
-  modify f =
-    StateError (\st -> Right ((), f st))
+  modify f     =  StateError (\st -> Right ((), f st))
 

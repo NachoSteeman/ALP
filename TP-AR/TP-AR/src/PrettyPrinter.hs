@@ -9,7 +9,7 @@ module PrettyPrinter
 
 import qualified Data.Set as Set
 import qualified Data.Map as Map
-import Data.List (intercalate, sort)
+import Data.List (intercalate)
 import Text.Printf (printf)
 
 import AST  
@@ -21,9 +21,9 @@ prettyRelacion (R atrib tuplas nom)
     | Set.null tuplas = 
         printf "Relación '%s' (vacía)\nEsquema: [%s]\n" 
                nom 
-               (intercalate ", " (Set.toList atrib))
+               (intercalate ", "  atrib)
     | otherwise =
-        let atribList = sort (Set.toList atrib)
+        let atribList =  atrib
             header = makeHeader nom atribList
             separator = makeSeparator atribList
             rows = map (makeRow atribList) (Set.toList tuplas)
