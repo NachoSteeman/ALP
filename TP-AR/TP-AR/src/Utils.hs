@@ -3,11 +3,12 @@ module Utils
   union,
   diferencia,
   productoCartesiano,
-  renombramiento,
+  renombre,
   proyeccion,
-  renombramiento,
   naturalJoin,
-  division
+  division,
+  interseccion,
+  groupBy
 
 
 
@@ -80,6 +81,7 @@ compararIgual (VBool x) (VBool y) = x == y
 compararIgual VNull VNull = True
 compararIgual _ _ = False
 
+
 -- =========================================================
 -- UNION
 -- =========================================================
@@ -143,21 +145,42 @@ prodCartAux setA setB =
         ]
 
 -- =========================================================
--- RENOMBRAMIENTO
+-- RENOMBRE
 -- =========================================================
+renombre :: Atributo -> Atributo -> Relacion -> Either Err Relacion
+renombre oldAttr newAttr r@(R attrs tups name)
+    -- Validar que el atributo viejo existe:
+    | notElem oldAttr attrs = Left $ "Atributo '" ++ oldAttr ++ "' no existe en relación"
+    
+    -- Validar que el atributo nuevo no existe ya:
+    | elem newAttr attrs =  Left $ "Atributo '" ++ newAttr ++ "' ya existe en relación"
 
-renombramiento :: String -> Relacion -> Relacion
-renombramiento nuevoNombre (R a t n) =
-    let a' = map (renombramientoAux nuevoNombre) a
+    -- Validar que el nombre es diferente:
+    | oldAttr == newAttr = Left "El atributo antiguo y nuevo no pueden ser iguales"
+
+    -- Si no hay problemas:
+    | otherwise =  let a = map (\a -> if a == oldAttr then newAttr else a) attrs
+                       t = Set.map (renameTupla oldAttr newAttr) tups 
+                    in return (R a t name)
+
+renameTupla :: Atributo -> Atributo -> Tupla -> Tupla
+renameTupla oldAttr newAttr tup = case Map.lookup oldAttr tup of
+        Nothing -> tup  -- Nunca ocurrira por como validamos la entrada
+        Just val -> Map.delete oldAttr $ Map.insert newAttr val tup
+
+
+renombre2 :: String -> Relacion -> Relacion
+renombre2 nuevoNombre (R a t n) =
+    let a' = map (renombreAux2 nuevoNombre) a
 
         t' = Set.map
-                (\tup -> Map.mapKeys (renombramientoAux nuevoNombre) tup)
+                (\tup -> Map.mapKeys (renombreAux2 nuevoNombre) tup)
                 t
 
     in R a' t' nuevoNombre
 
-renombramientoAux :: String -> Atributo -> Atributo  
-renombramientoAux nuevoNombre atrib =
+renombreAux2 :: String -> Atributo -> Atributo  
+renombreAux2 nuevoNombre atrib =
     nuevoNombre ++ "." ++ atrib
 
 -- =========================================================
@@ -184,7 +207,7 @@ proyectarTupla attrs tupla =
     Map.filterWithKey (\k _ -> k `elem` attrs) tupla
 
 -- =========================================================
--- INTERSECCION
+-- INTERSECCION 
 -- =========================================================
 
 interseccion :: Relacion -> Relacion -> Either String Relacion
@@ -238,3 +261,9 @@ division r@(R a0 t0 n0) s@(R a1 t1 n1)
             diferencia proy1 proy2
 
 
+-- =========================================================
+-- GROUP BY
+-- =========================================================
+
+groupBy :: [Atributo] -> [(GroupOp, Atributo)] -> Relacion -> Either String Relacion
+groupBy = undefined

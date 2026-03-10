@@ -1,4 +1,7 @@
-module Eval where
+module Eval (
+  evalExpr,
+  evalAndPrint
+) where
 
 
 import AST
@@ -7,15 +10,6 @@ import PrettyPrinter
 import Monads
 import qualified Data.Map as Map
 
-liftEither :: Either String a -> StateError a
-liftEither (Left msg)  = throw (OperacionNoExiste msg)
-liftEither (Right val) = return val
-
-evalAndPrint :: State -> Expr -> IO ()
-evalAndPrint s expr =
-  case runStateError (evalExpr expr) s of
-    Left err -> print err
-    Right (rel, _) -> putStrLn (prettyRelacion rel)
 
 
 
@@ -23,6 +17,7 @@ evalAndPrint s expr =
 evalExpr :: Expr -> StateError Relacion
 evalExpr expr = case expr of
 
+  -- OPERACIONES BÁSICAS:
   ERelacion name -> do
     st <- get
     let ctx = ctxt st
@@ -36,27 +31,29 @@ evalExpr expr = case expr of
 
   EProyeccion attrs e -> do
     r <- evalExpr e
-    liftEither (proyeccion attrs r)
+    evalEither (proyeccion attrs r)
 
   EUnion e1 e2 -> do
     r1 <- evalExpr e1
     r2 <- evalExpr e2
-    liftEither (union r1 r2)
+    evalEither (union r1 r2)
 
   EDiff e1 e2 -> do
     r1 <- evalExpr e1
     r2 <- evalExpr e2
-    liftEither (diferencia r1 r2)
+    evalEither (diferencia r1 r2)
 
   EProd e1 e2 -> do
     r1 <- evalExpr e1
     r2 <- evalExpr e2
     return (productoCartesiano r1 r2)
 
+
+  -- OPERACIONES DERIVADAS:
   EInterseccion e1 e2 -> do
     r1 <- evalExpr e1
     r2 <- evalExpr e2
-    liftEither (interseccion r1 r2)
+    evalEither (interseccion r1 r2)
 
   ENaturalJoin e1 e2 -> do
     r1 <- evalExpr e1
@@ -66,6 +63,26 @@ evalExpr expr = case expr of
   EDiv e1 e2 -> do
     r1 <- evalExpr e1
     r2 <- evalExpr e2
-    liftEither (division r1 r2)
+    evalEither (division r1 r2)
+
+  EGroup groupAttrs aggOps e -> do
+    r <- evalExpr e
+    evalEither (groupBy groupAttrs aggOps r)
+
+  ERenombre oldAttr newAttr e -> do
+    r <- evalExpr e
+    evalEither (renombre oldAttr newAttr r)
 
   _ -> throw (OperacionNoExiste "Operacion no soportada")
+
+
+evalEither :: Either String a -> StateError a
+evalEither (Left err)  = throw (ErrorEvaluacion err)
+evalEither (Right val) = return val
+
+evalAndPrint :: State -> Expr -> IO ()
+evalAndPrint s expr =
+  case runStateError (evalExpr expr) s of
+    Left err -> print err
+    Right (rel, _) -> putStrLn (prettyRelacion rel)
+

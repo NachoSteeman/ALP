@@ -23,7 +23,7 @@ import Data.Char
     -- Operaciones binarias:
     union       { TUnion }
     diferencia  { TDiferencia }
-    intersec    { TInterseccion }
+    interseccion    { TInterseccion }
     producto    { TProducto }
     division    { TDivision }
 
@@ -67,7 +67,7 @@ import Data.Char
 
 
 -- Precedencias:
-%left union diferencia intersec
+%left union diferencia interseccion
 %left producto division
 %left naturaljoin join
 %left or
@@ -89,7 +89,7 @@ Expr
 
 BinExpr
     : BinExpr union      JoinExpr { EUnion $1 $3 }
-    | BinExpr intersec   JoinExpr { EInterseccion $1 $3 }
+    | BinExpr interseccion   JoinExpr { EInterseccion $1 $3 }
     | BinExpr diferencia JoinExpr { EDiff $1 $3 }
     | JoinExpr { $1 }
 
@@ -260,7 +260,7 @@ keyword w = case w of
     "group"       -> TGroup
     "union"       -> TUnion
     "diferencia"  -> TDiferencia
-    "intersec"    -> TInterseccion
+    "interseccion"    -> TInterseccion
     "producto"    -> TProducto
     "division"    -> TDivision
     "naturaljoin" -> TNaturalJoin

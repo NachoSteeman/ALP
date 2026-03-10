@@ -54,18 +54,17 @@ data Expr = ERelacion String
 
 
 -- Predicados para Select: P
-data Cond
-    = PTrue
-    | PFalse
-    | PEq  Atributo  Valor             -- attr = valor
-    | PNeq Atributo  Valor             -- attr ≠ valor
-    | PLt  Atributo  Valor             -- attr < valor
-    | PGt  Atributo  Valor             -- attr > valor
-    | PAttrEq Atributo Atributo        -- attr1 = attr2
-    | PAnd Cond Cond                   -- p1 AND p2
-    | POr  Cond Cond                   -- p1 OR p2
-    | PNot Cond                        -- NOT p
-    deriving (Eq, Show)
+data Cond = PTrue
+          | PFalse
+          | PEq  Atributo  Valor             -- attr = valor
+          | PNeq Atributo  Valor             -- attr ≠ valor
+          | PLt  Atributo  Valor             -- attr < valor
+          | PGt  Atributo  Valor             -- attr > valor
+          | PAttrEq Atributo Atributo        -- attr1 = attr2
+          | PAnd Cond Cond                   -- p1 AND p2
+          | POr  Cond Cond                   -- p1 OR p2
+          | PNot Cond                        -- NOT p
+          deriving (Eq, Show)
 
 -- Predicado para Group:
 data GroupOp = Count
@@ -113,12 +112,11 @@ emptyContext =  Context
   , operaciones = Map.empty
   }
 
-data Error
-  = RelacionNoExiste NombreRel
-  | RelacionYaExiste NombreRel
-  | OperacionNoExiste NombreOp
-  | OperacionYaExiste NombreOp
-  | EsquemaIncompatible
-  | AtributoNoExiste Atributo
-  | ErrorEvaluacion String -- Nuevo
+data Error = RelacionNoExiste NombreRel
+           | RelacionYaExiste NombreRel
+           | OperacionNoExiste NombreOp
+           | OperacionYaExiste NombreOp
+           | EsquemaIncompatible
+           | AtributoNoExiste Atributo
+           | ErrorEvaluacion String -- Nuevo
   deriving Show
