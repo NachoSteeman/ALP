@@ -25,12 +25,13 @@ source-repository head
 
 library
   exposed-modules:
-      AST
+      Commons
       Eval
       Monads
+      Operations
       Parser
       PrettyPrinter
-      Utils
+      UtilsMain
   other-modules:
       Paths_TP_AR
   autogen-modules:

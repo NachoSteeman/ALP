@@ -1,8 +1,226 @@
-def rel = R(
-  {Nombre, Color, Edad},
-  {
-    {Nombre="Ana", Color="Rojo", Edad=20},
-    {Nombre="Luis", Color="Azul", Edad=22}
-  },
-  "Tuti-Frutti"
+
+:createRel empleados id:int,nombre:string,edad:int,dept:int
+:createRel departamentos dept:int,nombreDept:string
+:createRel salarios id:int,salario:int
+:createRel proyectos id:int,proyecto:string
+:createRel trabaja id:int,proyecto:string
+
+
+
+:insertRel empleados
+1,"Juan",25,10;
+2,"Ana",30,20;
+3,"Pedro",40,10;
+4,"Lucia",35,30
+
+:insertRel departamentos
+10,"IT";
+20,"HR";
+30,"Finance"
+
+:insertRel salarios
+1,1000;
+2,1500;
+3,2000;
+4,1800
+
+:insertRel proyectos
+1,"Sistema";
+2,"Web";
+3,"IA";
+4,"Data"
+
+:insertRel trabaja
+1,"Sistema";
+1,"Web";
+2,"Web";
+3,"IA";
+4,"Data";
+4,"Web"
+
+
+
+
+seleccion [edad > 30] (empleados)
+
+seleccion [dept = 10] (empleados)
+
+seleccion [salario > 1500] (salarios)
+
+seleccion [edad > 20 and edad < 35] (empleados)
+
+
+
+
+
+
+proyeccion [nombre] (empleados)
+
+proyeccion [nombre,edad] (empleados)
+
+proyeccion [id] (salarios)
+
+
+
+empleados producto departamentos
+
+empleados producto salarios
+
+
+
+:createRel A x:int
+:createRel B x:int
+
+:insertRel A
+1;
+2;
+3
+
+:insertRel B
+3;
+4;
+5
+
+
+A union B
+
+A diferencia B
+
+B diferencia A
+
+A interseccion B
+
+
+
+
+
+empleados productoNatural salarios
+
+empleados productoNatural departamentos
+
+(empleados productoNatural salarios) productoNatural departamentos
+
+
+
+
+
+
+empleados productoNatural salarios
+
+
+
+empleados productoNatural departamentos
+
+
+
+
+seleccion [salario > 1500]
+(
+    empleados productoNatural salarios
 )
+
+
+
+
+proyeccion [nombre]
+(
+    seleccion [salario > 1500]
+    (
+        empleados productoNatural salarios
+    )
+)
+
+
+
+
+
+proyeccion [nombre,nombreDept]
+(
+    empleados productoNatural departamentos
+)
+
+
+
+
+empleados productoNatural trabaja
+
+
+
+
+
+seleccion [proyecto = "Web"]
+(
+    empleados productoNatural trabaja
+)
+
+
+
+
+
+seleccion [salario > 1500]
+(
+    (empleados productoNatural salarios)
+    productoNatural
+    trabaja
+)
+
+
+
+
+
+renombre [nombre -> nombreEmpleado] (empleados)
+
+renombre [salario -> sueldo] (salarios)
+
+
+
+
+
+:createRel cursos alumno:string,curso:string
+:createRel obligatorios curso:string
+
+:insertRel cursos
+"Juan","BD";
+"Juan","SO";
+"Juan","IA";
+"Ana","BD";
+"Ana","SO";
+"Pedro","BD"
+
+:insertRel obligatorios
+"BD";
+"SO"
+
+cursos division obligatorios
+
+
+
+
+
+:createRel dup a:int,b:int
+
+:insertRel dup
+1,2;
+1,2;
+2,3;
+2,3
+
+proyeccion [a] (dup)
+
+seleccion [edad > 100] (empleados)
+
+
+
+
+:createRel X a:int
+:createRel Y b:int
+
+:insertRel X
+1;
+2
+
+:insertRel Y
+3;
+4
+
+X productoNatural Y

@@ -1,6 +1,6 @@
 module Monads where
 
-import AST
+import Commons
 import Control.Monad -- Para ap
 
 newtype StateError a = StateError {runStateError ::  State -> Either Error (a, State) }

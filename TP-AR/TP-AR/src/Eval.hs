@@ -4,8 +4,8 @@ module Eval (
 ) where
 
 
-import AST
-import Utils
+import Commons
+import Operations
 import PrettyPrinter
 import Monads
 import qualified Data.Map as Map
@@ -17,17 +17,19 @@ import qualified Data.Map as Map
 evalExpr :: Expr -> StateError Relacion
 evalExpr expr = case expr of
 
-  -- OPERACIONES BÁSICAS:
+  -- Operaciones basicas:
+  
   ERelacion name -> do
-    st <- get
-    let ctx = ctxt st
-    case Map.lookup name (relaciones ctx) of
+    st <- get -- obtengo el estado del programa
+    let rels = relaciones (ctxt st) -- obtengo las relaciones que estan en el contexto
+    
+    case Map.lookup name rels of    
       Nothing -> throw (RelacionNoExiste name)
       Just r  -> return r
 
   ESeleccion cond e -> do
     r <- evalExpr e
-    return (seleccion r cond)
+    evalEither (seleccion r cond)
 
   EProyeccion attrs e -> do
     r <- evalExpr e
@@ -49,7 +51,7 @@ evalExpr expr = case expr of
     return (productoCartesiano r1 r2)
 
 
-  -- OPERACIONES DERIVADAS:
+  -- Operaciones derivadas:
   EInterseccion e1 e2 -> do
     r1 <- evalExpr e1
     r2 <- evalExpr e2
@@ -65,10 +67,6 @@ evalExpr expr = case expr of
     r2 <- evalExpr e2
     evalEither (division r1 r2)
 
-  EGroup groupAttrs aggOps e -> do
-    r <- evalExpr e
-    evalEither (groupBy groupAttrs aggOps r)
-
   ERenombre oldAttr newAttr e -> do
     r <- evalExpr e
     evalEither (renombre oldAttr newAttr r)
@@ -76,8 +74,8 @@ evalExpr expr = case expr of
   _ -> throw (OperacionNoExiste "Operacion no soportada")
 
 
-evalEither :: Either String a -> StateError a
-evalEither (Left err)  = throw (ErrorEvaluacion err)
+evalEither :: Either Error a -> StateError a
+evalEither (Left err)  = throw err 
 evalEither (Right val) = return val
 
 evalAndPrint :: State -> Expr -> IO ()

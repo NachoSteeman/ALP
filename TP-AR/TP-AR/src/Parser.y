@@ -1,9 +1,8 @@
 {
 module Parser where
-import AST
+import Commons
 import Data.Char
 }
-
 
 
 
@@ -15,10 +14,9 @@ import Data.Char
 
 %token
     -- Operaciones unarias:
-    select      { TSelect }
-    project     { TProject }
-    rename      { TRename }
-    group       { TGroup }
+    seleccion      { TSelect }
+    proyeccion     { TProject }
+    renombre      { TRename }
 
     -- Operaciones binarias:
     union       { TUnion }
@@ -28,7 +26,6 @@ import Data.Char
     division    { TDivision }
 
     naturaljoin { TNaturalJoin }
-    join        { TJoin }
 
 
     -- Condiciones:
@@ -42,20 +39,12 @@ import Data.Char
     '<'         { TLt }
     '>'         { TGt }
 
-
-    -- Predicados Group:
-    count       { TCount }
-    sum         { TSum }
-    avg         { TAvg }
-    min         { TMin }
-    max         { TMax }
-
     '('         { TLParen }
     ')'         { TRParen }
     '['         { TLBracket }
     ']'         { TRBracket }
     ','         { TComma }
-    ';'         { TSemicolon }
+--    ';'         { TSemicolon }
     '->'        { TArrow }
 
     
@@ -69,7 +58,7 @@ import Data.Char
 -- Precedencias:
 %left union diferencia interseccion
 %left producto division
-%left naturaljoin join
+%left naturaljoin 
 %left or
 %left and
 %right not
@@ -95,7 +84,6 @@ BinExpr
 
 JoinExpr
     : JoinExpr naturaljoin       ProdExpr { ENaturalJoin $1 $3 }
-    | JoinExpr join '[' Cond ']' ProdExpr { EJoin $4 $1 $6 }
     | ProdExpr { $1 }
 
 ProdExpr
@@ -104,10 +92,9 @@ ProdExpr
     | BaseExpr { $1 }
 
 BaseExpr
-    : select '[' Cond ']' '(' Expr ')' { ESeleccion $3 $6 }
-    | project '[' AttrList ']' '(' Expr ')' { EProyeccion $3 $6 }
-    | rename '[' ident '->' ident ']' '(' Expr ')' { ERenombre $3 $5 $8 }
-    | group '[' AttrList ';' AggList ']' '(' Expr ')' { EGroup $3 $5 $8 }
+    : seleccion '[' Cond ']' '(' Expr ')' { ESeleccion $3 $6 }
+    | proyeccion '[' AttrList ']' '(' Expr ')' { EProyeccion $3 $6 }
+    | renombre '[' ident '->' ident ']' '(' Expr ')' { ERenombre $3 $5 $8 }
     | '(' Expr ')' { $2 }
     | ident { ERelacion $1 }
     
@@ -115,17 +102,6 @@ BaseExpr
 AttrList
     : ident                    { [$1] }
     | AttrList ',' ident       { $1 ++ [$3] }
-
-AggList
-    : Agg                      { [$1] }
-    | AggList ',' Agg          { $1 ++ [$3] }
-
-Agg
-    : count '(' ident ')'      { (Count, $3) }
-    | sum '(' ident ')'        { (Sum, $3) }
-    | avg '(' ident ')'        { (Avg, $3) }
-    | min '(' ident ')'        { (Min, $3) }
-    | max '(' ident ')'        { (Max, $3) }
 
 -- Para obtener las condiciones:
 Cond
@@ -157,24 +133,24 @@ Value
 
 {
 parseError :: [Token] -> Either String a
-parseError tokens =
-  Left ("Error de sintaxis durante el parseo. Vuelva a escribir lo que queria...")
+parseError [] =
+  Left "Error de sintaxis: fin inesperado de la entrada"
+
+parseError (tok:_) =
+  Left ("Error de sintaxis cerca de: " ++ show tok)
 -------------------------------------------------------------
 -- Lexer
 -------------------------------------------------------------
-
 data Token
     = TSelect
     | TProject
     | TRename
-    | TGroup
     | TUnion
     | TDiferencia
     | TInterseccion
     | TProducto
     | TDivision
     | TNaturalJoin
-    | TJoin
     | TAnd
     | TOr
     | TNot
@@ -184,17 +160,12 @@ data Token
     | TNeq
     | TLt
     | TGt
-    | TCount
-    | TSum
-    | TAvg
-    | TMin
-    | TMax
     | TLParen
     | TRParen
     | TLBracket
     | TRBracket
     | TComma
-    | TSemicolon
+--    | TSemicolon
     | TArrow
     | TNull
     | TIdentifier String
@@ -207,7 +178,7 @@ data Token
 
 
 
-lexer :: String -> Either String [Token]
+lexer :: String -> Either Err [Token]
 lexer [] = Right []
 lexer (c:cs)
 
@@ -218,7 +189,7 @@ lexer (c:cs)
   | c == '['  = add TLBracket
   | c == ']'  = add TRBracket
   | c == ','  = add TComma
-  | c == ';'  = add TSemicolon
+--  | c == ';'  = add TSemicolon
   | c == '='  = add TEq
   | c == '<'  = add TLt
   | c == '>'  = add TGt
@@ -254,29 +225,22 @@ lexer (c:cs)
 
 keyword :: String -> Token
 keyword w = case w of
-    "select"      -> TSelect
-    "project"     -> TProject
-    "rename"      -> TRename
-    "group"       -> TGroup
-    "union"       -> TUnion
-    "diferencia"  -> TDiferencia
-    "interseccion"    -> TInterseccion
-    "producto"    -> TProducto
-    "division"    -> TDivision
-    "naturaljoin" -> TNaturalJoin
-    "join"        -> TJoin
-    "and"         -> TAnd
-    "or"          -> TOr
-    "not"         -> TNot
-    "true"        -> TTrue
-    "false"       -> TFalse
-    "count"       -> TCount
-    "sum"         -> TSum
-    "avg"         -> TAvg
-    "min"         -> TMin
-    "max"         -> TMax
-    "null"        -> TNull
-    _             -> TIdentifier w
+    "seleccion"       -> TSelect
+    "proyeccion"   -> TProject
+    "renombre"       -> TRename
+    "union"        -> TUnion
+    "diferencia"   -> TDiferencia
+    "interseccion" -> TInterseccion
+    "producto"     -> TProducto
+    "division"     -> TDivision
+    "productoNatural"  -> TNaturalJoin
+    "and"          -> TAnd
+    "or"           -> TOr
+    "not"          -> TNot
+    "true"         -> TTrue
+    "false"        -> TFalse
+    "null"         -> TNull
+    _              -> TIdentifier w
 
 
 

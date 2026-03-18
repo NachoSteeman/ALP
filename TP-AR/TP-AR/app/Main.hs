@@ -1,50 +1,35 @@
 module Main where
 
-import           Control.Exception              ( catch
-                                                , IOException
-                                                )
 
-import Control.Exception (evaluate) -- Eso fuerza la evaluación dentro del catch.
 
-import Text.Read (readMaybe)
-
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-
-import           Control.Monad.Except
-import           Data.Char
-import           Data.List
 import           Data.Maybe
 import           Prelude                 hiding ( print )
-import           System.Console.Haskeline
-import qualified Control.Monad.Catch           as MC
+
 
 import           System.Environment
-import           System.IO               hiding ( print )
-import System.Directory (doesFileExist)
-
-import           Text.PrettyPrint.HughesPJ      ( render
-                                                , text
-                                                )
 
 
+import System.Console.Haskeline
 
-import Control.Monad (when, foldM)
+import qualified Control.Monad.Catch as MC
+import Control.Monad (when)
+
+import Data.List (isPrefixOf, intersperse)
+import Data.Char (isSpace)
+
 import Control.Monad.Trans.Class (lift)
-import Control.Monad.IO.Class (liftIO)
 
-import Control.Exception (SomeException)
 
-import AST
-import Parser
-import Utils
+import Commons
+
 import PrettyPrinter
-import Eval
 import Monads
+import UtilsMain
+
 ---------------------
 --- Interpreter
 ---------------------
--- parse → Expr → eval → prettyRelacion
+-- parse -> Expr -> eval -> prettyRelacion
 
 main :: IO ()
 main = runInputT defaultSettings main'
@@ -78,40 +63,26 @@ readevalprint args state@(S inter lfile _) =
         --  enter loop
         rec state' { inter = True }
 
+
 --                ->  
 --               /
 -- Loop -> input -> Interpreto Comando -> handleo Comando
 ---------------------------------------------------------------
 -- Interprerta los comandos que se escriben por consola:
 ---------------------------------------------------------------
-isAssignment :: String -> Bool
-isAssignment s =
-    let trimmed = trim s
-        hasEquals = '=' `elem` trimmed
-        beforeEquals = takeWhile (/= '=') trimmed
-        -- Es asignación si:
-        -- 1. Tiene '='
-        -- 2. Lo que está antes del '=' es un identificador simple (sin '[', '(', etc.)
-        -- 3. No empieza con ':'
-    in hasEquals 
-       && not (isPrefixOf ":" trimmed)
-       && all isValidIdChar beforeEquals
-       && not (null beforeEquals)
-  where
-    isValidIdChar c = c `elem` (['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++ "_") || isSpace c
 
 
 interpretCommand :: String -> InputT IO Command
 interpretCommand x = lift $ 
-  -- Detectar asignación: "nombre = expresion"
+  -- Detectar asignación (para vistas): "nombre = expresion" 
   if isAssignment x
   then do
       let (name, rest) = break (== '=') x
-          exprStr = tail rest  -- Quitar el '='
+          exprStr = tail rest  -- Quitamos el '='
       return (AssignRel (trim name) (trim exprStr))
 
+  -- Si es un comando:
   else if isPrefixOf ":" x
-  -- Si tiene ":" como prefijo:
   then do
     let (cmd, t') = break isSpace x
         t         = dropWhile isSpace t'
@@ -241,383 +212,3 @@ handleCommand state@(S inter lfile ctxt) cmd = case cmd of                -- VER
   _ -> do
         lift $ putStrLn "Comando no implementado."
         return (Just state)
-
-
----------------------------------------------------------------
--- Operaciones para el contexto:
----------------------------------------------------------------
-insertTupla :: [Atributo] -> [Valor] -> Either String Tupla
-insertTupla attrs vals
-    | length attrs /= length vals =
-        Left "Cantidad de valores no coincide con atributos"
-    | otherwise =
-        Right $ Map.fromList (zip attrs vals)
-
-insertar :: Relacion -> [[Valor]] -> Either String Relacion
-insertar (R attrs ts nom) filas = do
-    nuevas <- mapM (insertTupla attrs) filas
-    let ts' = Set.union ts (Set.fromList nuevas)
-    return (R attrs ts' nom)
-
--- Para manejar definicion de operaciones:
-
-defineOp :: NombreOp -> Expr -> StateError ()
-defineOp name expr = do
-  st <- get
-  let c       = ctxt st
-      ops     = operaciones c
-      
-  when (Map.member name ops) $
-      throw (OperacionYaExiste name)
-  
-  let newOps  = Map.insert name expr ops
-      newCtxt = c { operaciones = newOps }
-      
-  put st { ctxt = newCtxt }
-
-
--- Para crear una relacion:
-
-createRel :: NombreRel -> [Atributo] -> StateError ()
-createRel name attrs = do
-  st <- get
-  let c     = ctxt st
-      rels  = relaciones c
-
-  when (Map.member name rels) $
-    throw (RelacionYaExiste name)
-
-  let nuevaRel = R attrs Set.empty name
-      newRels  = Map.insert name nuevaRel rels
-      newCtxt  = c { relaciones = newRels }
-
-  put st { ctxt = newCtxt }
-
-
-insertRel :: NombreRel -> [[String]] -> StateError ()
-insertRel name rawTuplas = do
-  st <- get
-  let c     = ctxt st
-      rels  = relaciones c
-
-  case Map.lookup name rels of
-    Nothing -> throw (RelacionNoExiste name)
-
-    Just (R attrs oldTups rname) -> do
-
-      let attrList =  attrs
-          -- Validar longitud:
-          valid = all (\vals -> length vals == length attrList) rawTuplas
-      
-      when (not valid) $ throw EsquemaIncompatible
-
-      -- Construir Tuplas reales
-      let newTuplas = map (\vals ->
-                                    Map.fromList $ zip attrList (map parseValor vals)) rawTuplas
-
-          newRel  = R attrs (Set.union oldTups (Set.fromList newTuplas)) rname
-          newRels = Map.insert name newRel rels
-          newCtxt = c { relaciones = newRels }
-      put st { ctxt = newCtxt }
-
-
-parseValor :: String -> Valor
-parseValor s
-  | map toLower s == "true"  = VBool True
-  | map toLower s == "false" = VBool False
-  | map toLower s == "null"  = VNull
-  | otherwise =  case (readMaybe s) of
-                    Just n  ->  VInt n
-                    Nothing ->  VString s
-
-dropRel :: NombreRel -> StateError ()
-dropRel name = do
-  st <- get
-  let c     = ctxt st
-      rels  = relaciones c
-
-  when (not (Map.member name rels)) $
-    throw (RelacionNoExiste name)
-
-  let newRels = Map.delete name rels
-      newCtxt = c { relaciones = newRels }
-
-  put st { ctxt = newCtxt }
-
-assignRel :: NombreRel -> Expr -> StateError ()
-assignRel name expr = do
-  rel <- evalExpr expr   -- evaluamos la expresión
-  st  <- get
-  let c     = ctxt st
-      rels  = relaciones c
-      -- insertamos o reemplazamos:
-      newRel  = rel { nombre = name }
-      newRels = Map.insert name newRel rels
-      newCtxt = c { relaciones = newRels }
-  put st { ctxt = newCtxt }
-
-
-execute :: Expr -> State -> IO State
-execute expr st =
-  case runStateError (evalExpr expr) st of
-    Left err -> do
-      putStrLn ("Error: " ++ show err)
-      return st
-    Right (rel, newSt) -> do
-      putStrLn (prettyRelacion rel)
-      return newSt
-
-
-parseIO :: String -> String -> InputT IO (Maybe Expr)
-parseIO msj input =
-  case parse input of
-    Left err -> do
-      outputStrLn (msj ++ ": " ++ err)
-      return Nothing
-    Right ast ->
-      return (Just ast)
-
-
-
----------------------------------------------------------------
--- Para manejar comando help:
----------------------------------------------------------------
-
-helpTxt :: [InteractiveCommand] -> String
-helpTxt cs =
-  "Lista de comandos:  Cualquier comando puede ser abreviado a :c donde\n"
-    ++ "c es el primer caracter del nombre completo.\n\n"
-    ++ "<expr>                  evaluar la expresión\n"
-    ++ "def <var> = <expr>      definir una variable\n"
-    ++ unlines
-         (map
-           (\(Cmd c a _ d) ->
-             let
-               ct =
-                 concat
-                   (intersperse ", "
-                                (map (++ if null a then "" else " " ++ a) c)
-                   )
-             in  ct ++ replicate ((24 - length ct) `max` 2) ' ' ++ d
-           )
-           cs
-         )
-
-commands :: [InteractiveCommand]
-commands =
-  [ Cmd [":browse"] "" (const Browse) "Ver los nombres en scope"
-  , Cmd [":load"]
-        "<file>"
-        (Compile . CompileFile)
-        "Cargar un programa desde un archivo"
-  
-  , Cmd [":clear"] "" (const Clear) "Limpia la consola" 
-
-  , Cmd [":reload"]
-        "<file>"
-        (const Recompile)
-        "Volver a cargar el último archivo"
-  , Cmd [":quit"]       ""       (const Quit) "Salir del intérprete"
-  , Cmd [":help", ":?"] ""       (const Help) "Mostrar esta lista de comandos"
-  , Cmd [":type"]       "<term>" (FindExpr)   "Inferir el tipo de un término"
-
-  , Cmd [":defineOP"]  
-        "<name> <expr>" 
-        (\s ->
-          let (name, rest) = break isSpace s
-          in DefineOP name (dropWhile isSpace rest)
-        )
-        "Define un operador"
-
-
-  , Cmd [":createRel"] 
-        "<name> <atribs>" 
-        (\s ->
-          let (name, rest) = break isSpace s
-              attrsStr = dropWhile isSpace rest
-              attrs = parseAttrs attrsStr
-          in CreateRel name attrs
-        )
-        "Crea una relacion con sus atributos"
-
-  , Cmd [":insertRel"] 
-        "<name> <tups>"   
-        (\s ->
-           let (name, rest) = break isSpace s
-               tupsStr = dropWhile isSpace rest
-               tups = parseTuplas tupsStr
-           in InsertRel name tups
-        )
-         "Agrega tuplas a una relacion"
-  
-  , Cmd [":dropRel"]
-      "<name>"
-      (\s -> DropRel (trim s))
-      "Elimina una relación"
-  ]
-
-
-
-
-splitOn :: Char -> String -> [String]
-splitOn _ [] = [""]
-splitOn delim (c:cs)
-  | c == delim = "" : rest
-  | otherwise  = (c : head rest) : tail rest
-  where
-    rest = splitOn delim cs
-
-
-parseAttrs :: String ->  [Atributo]
-parseAttrs s = map trim (splitOn ',' s)
-
-parseTuplas :: String -> [[String]]
-parseTuplas s =
-  map parseOneTuple $
-    splitOn ';' s
-
-parseOneTuple :: String -> [String]
-parseOneTuple t =
-  map trim (splitOn ',' t)
-
-
-trim :: String -> String
-trim = f . f
-  where f = reverse . dropWhile isSpace
-
-
-
-
-
-
-
-
-
-
----------------------------------------------------------------
--- Para manejar el uso de archivos
----------------------------------------------------------------
-
--- Para que sea opcional el prelude
-compileFiles xs s =
-  foldM step s xs
-  where
-    step st file = do
-      exists <- liftIO (doesFileExist file)
-      if exists
-        then compileFile st file
-        else return st
-
-
-
-compileFile :: State -> String -> InputT IO State
-compileFile state@(S inter lfile v) f = do
-  lift $ putStrLn ("Abriendo " ++ f ++ "...")
-  let f' = reverse (dropWhile isSpace (reverse f))
-  x <- lift $ Control.Exception.catch
-    (readFile f')
-    (\e -> do
-      let err = show (e :: IOException)
-      hPutStr stderr
-              ("No se pudo abrir el archivo " ++ f' ++ ": " ++ err ++ "\n")
-      return ""
-    )
-  expr <- parseIO f'  x   -- Parsear con lo mio 
-  case expr of
-    Nothing -> return state
-    Just e  -> handleExpr state e
-
-compileExpr :: State -> String -> InputT IO State
-compileExpr state x = do
-  mx <- parseIO "<interactive>" x
-  case mx of
-    Nothing -> return state                     -- VER
-    Just e  -> handleExpr state e
-
-
-handleExpr :: State -> Expr -> InputT IO State
-handleExpr state expr = do
-  newState <- lift $ execute expr state
-  return newState
-
-prelude :: String
-prelude = "Ejemplos/relacionesBase.hs"
-
-it :: String
-it = "it"
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
----------------------------------------------------------------
--- Para manejar comandos:
----------------------------------------------------------------
-data InteractiveCommand = Cmd [String] String (String -> Command) String
-
-data Command = -- Para comandos consola:
-              Compile CompileForm
-              | Clear
-              | Recompile
-              | Browse
-              | Quit
-              | Help
-              | Noop
-
-              -- 
-              | FindExpr String
-              | DefineOP NombreOp String
-       
-              -- Para trabajar con mis relaciones:
-              | CreateRel NombreRel  [Atributo] 
-              | InsertRel NombreRel [[String]]
-              | DropRel NombreRel 
-              | AssignRel NombreRel String
-
-data CompileForm = CompileInteractive  String
-                  | CompileFile         String
-
----------------------------------------------------------------
--- Para excepciones:
----------------------------------------------------------------
-ioExceptionCatcher :: IOException -> IO (Maybe a)
-ioExceptionCatcher _ = return Nothing
-
-
-
----------------------------------------------------------------
--- Para Mostrar mejor las cosas:
----------------------------------------------------------------
-bienvenida :: IO ()
-bienvenida = do
-  putStr "\ESC[2J\ESC[H" -- Para limpiar la consola
-  putStrLn $ unlines
-    [ "╔════════════════════════════════════════════════════════════════════════════════════╗"
-    , "║ λλλ                              Relational Algebra                            λλλ ║"
-    , "╠════════════════════════════════════════════════════════════════════════════════════╣"
-    , "║                                                                                    ║"
-    , "║                                                                                    ║"
-    , "║                                                                                    ║"
-    , "║                               Bienvenido al intérprete                             ║"
-    , "║                                                                                    ║"
-    , "║                                                                                    ║"
-    , "║                                                                                    ║"
-    , "╚════════════════════════════════════════════════════════════════════════════════════╝"
-    , ""
-    , "  Para más información ingrese :help"
-    ]
-
-iprompt :: String
-iprompt = "ST> "
