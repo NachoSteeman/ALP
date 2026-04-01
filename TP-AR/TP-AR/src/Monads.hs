@@ -1,54 +1,24 @@
-module Monads where
+module Monads (
+  StateError,
+  runStateError,
+  throw,
+  
+  -- De Monad.Trans.State
+  get,
+  put,
+  modify
+) where
 
 import Commons
-import Control.Monad -- Para ap
 
-newtype StateError a = StateError {runStateError ::  State -> Either Error (a, State) }
+import Control.Monad.Trans.State (StateT, runStateT, get, put, modify)
+import Control.Monad.Trans.Class (lift)
 
-instance Functor StateError where
-  fmap f (StateError g) =
-    StateError $ \st ->
-      case g st of
-        Left err        -> Left err
-        Right (a, st')  -> Right (f a, st')
+type StateError a = StateT State (Either Error) a
 
-instance Applicative StateError where
-  pure  = return
-  (<*>) = ap
+runStateError :: StateError a -> State -> Either Error (a, State)
+runStateError = runStateT
 
-instance Monad StateError where 
-  return a = StateError (\s-> Right (a, s))
-  
-  (StateError g) >>= f =
-    StateError $ \st ->
-      case g st of
-        Left err        -> Left err
-        Right (a, st')  -> runStateError (f a) st'
-
-
-
-
-
-class Monad m => MonadError m where
-    -- Lanza un error
-    throw :: Error -> m a
-instance MonadError StateError where
-  throw err = StateError (\_ -> Left err)
-
-
-
-
-
-
-class Monad m => MonadState m where
-  get    :: m State
-  put    :: State -> m ()
-  modify :: (State -> State) -> m ()
-
-instance MonadState StateError where
-  get          = StateError (\st -> Right (st, st))
-
-  put newState = StateError (\_ -> Right ((), newState))
-
-  modify f     =  StateError (\st -> Right ((), f st))
+throw :: Error -> StateError a
+throw err = lift (Left err)
 

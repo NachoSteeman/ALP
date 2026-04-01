@@ -13,19 +13,22 @@ import qualified Data.Map as Map
 
 
 
-
+-- evalExpr: evalua una expresion y devuelve un error si no se puede evaluar o la relacion resultante junto al estado
 evalExpr :: Expr -> StateError Relacion
 evalExpr expr = case expr of
 
   -- Operaciones basicas:
-  
   ERelacion name -> do
-    st <- get -- obtengo el estado del programa
-    let rels = relaciones (ctxt st) -- obtengo las relaciones que estan en el contexto
+    st <- get 
+    let c    = ctxt st
+        rels = relaciones c
+        ops  = operaciones c
     
     case Map.lookup name rels of    
-      Nothing -> throw (RelacionNoExiste name)
       Just r  -> return r
+      Nothing -> case Map.lookup name ops of
+                   Just exprOp -> evalExpr exprOp
+                   Nothing     -> throw (RelacionNoExiste name)
 
   ESeleccion cond e -> do
     r <- evalExpr e
@@ -71,7 +74,7 @@ evalExpr expr = case expr of
     r <- evalExpr e
     evalEither (renombre oldAttr newAttr r)
 
-  _ -> throw (OperacionNoExiste "Operacion no soportada")
+  _ -> throw (OperacionNoExiste "Operacion no soportada") -- No es necesario pero lo dejo por buena practica 
 
 
 evalEither :: Either Error a -> StateError a

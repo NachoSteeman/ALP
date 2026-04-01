@@ -21,8 +21,8 @@ import Commons
 
 -- Imprime una relación como tabla
 prettyRelacion :: Relacion -> String
-prettyRelacion (R nom atribs tuplas)
-    | Set.null tuplas =
+prettyRelacion (R nom atribs ts)
+    | Set.null ts =
         printf "Relación '%s' (vacía)\nEsquema: [%s]\n"
                nom
                (intercalate ", " (map fst atribs))
@@ -31,7 +31,7 @@ prettyRelacion (R nom atribs tuplas)
         let atribList = map fst atribs
             header    = makeHeader nom atribList
             separator = makeSeparator atribList
-            rows      = map (makeRow atribList) (Set.toList tuplas)
+            rows      = map (makeRow atribList) (Set.toList ts)
 
         in unlines ([separator, header, separator] ++ rows ++ [separator])
 
@@ -121,7 +121,7 @@ prettyCondPrec p (POr c1 c2) =
     parensIf (p > 0) $
         prettyCondPrec 1 c1 ++ " ∨ " ++ prettyCondPrec 1 c2
 
-prettyCondPrec p (PNot c) =
+prettyCondPrec _ (PNot c) =
     "¬" ++ prettyCondPrec 3 c
 
 
@@ -177,8 +177,8 @@ prettyExpr expr = prettyExprPrec 0 expr
 
 
 prettyExprPrec :: Int -> Expr -> String
-prettyExprPrec _ (ERelacion nombre) =
-    nombre
+prettyExprPrec _ (ERelacion name) =
+    name
 
 prettyExprPrec p (ESeleccion cond e) =
     parensIf (p > 5) $

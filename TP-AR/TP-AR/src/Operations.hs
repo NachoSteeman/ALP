@@ -1,3 +1,4 @@
+{-# LANGUAGE RankNTypes #-}
 module Operations
 ( seleccion,
   union,
@@ -30,9 +31,9 @@ attrNames = map fst
 
 seleccion :: Relacion -> Cond -> Either Error Relacion
 seleccion (R n a t) c = do
-    let tuplas = Set.toList t
+    let tupsList = Set.toList t
 
-    evaluadas <- mapM evaluar tuplas
+    evaluadas <- mapM evaluar tupsList
 
     let filtradas = [tupla | (tupla, True) <- evaluadas]
 
@@ -87,21 +88,22 @@ filtrarCond c t = case c of
         b1 <- filtrarCond c1 t
         return (b0 || b1)
 
-    PNot c -> do
-        b <- filtrarCond c t
+    PNot c0 -> do
+        b <- filtrarCond c0 t
         return (not b)
 
-compararValor :: (Int -> Int -> Bool) -> Valor -> Valor -> Either Error Bool
-compararValor f (VInt x) (VInt y) = Right (f x y)
-compararValor _ _ _ = Left TiposIncompatibles
+compararValor :: (forall a. Ord a => a -> a -> Bool) -> Valor -> Valor -> Either Error Bool
+compararValor f (VInt x) (VInt y)       = Right (f x y)
+compararValor f (VString x) (VString y) = Right (f x y)
+compararValor _ _ _                     = Left TiposIncompatibles
 
 
 compararIgual :: Valor -> Valor -> Either Error Bool
-compararIgual (VInt x) (VInt y) = Right (x == y)
+compararIgual (VInt x) (VInt y)       = Right (x == y)
 compararIgual (VString x) (VString y) = Right (x == y)
-compararIgual (VBool x) (VBool y) = Right (x == y)
-compararIgual VNull VNull = Right True
-compararIgual _ _ =  Left TiposIncompatibles
+compararIgual (VBool x) (VBool y)     = Right (x == y)
+compararIgual VNull VNull             = Right True
+compararIgual _ _                     = Left TiposIncompatibles
 
 
 -- =========================================================
@@ -145,16 +147,16 @@ productoCartesiano (R n0 a0 t0) (R n1 a1 t1) =
     in R n a t
 
 renombrarSoloComunes :: [(Atributo,Type)] -> String -> [Atributo] -> [(Atributo,Type)]
-renombrarSoloComunes attrs nombre comunes =
-    map (\(a, t) -> if a `elem` comunes then (a ++ "-" ++ nombre, t) 
+renombrarSoloComunes attrs name comunes =
+    map (\(a, t) -> if a `elem` comunes then (a ++ "-" ++ name, t) 
                                         else (a, t)) attrs
 
 renombrarTuplasComunes :: Set.Set Tupla -> String -> [Atributo] -> Set.Set Tupla
-renombrarTuplasComunes ts nombre comunes =
+renombrarTuplasComunes ts name comunes =
     Set.map (\tupla ->
         Map.mapKeys (\a ->
             if a `elem` comunes
-                then a ++ "-" ++ nombre
+                then a ++ "-" ++ name
                 else a
         ) tupla
     ) ts
@@ -171,7 +173,7 @@ prodCartAux setA setB =
 -- RENOMBRE
 -- =========================================================
 renombre :: Atributo -> Atributo -> Relacion -> Either Error Relacion
-renombre oldAttr newAttr r@(R name attrs tups)
+renombre oldAttr newAttr (R name attrs tups)
     -- Validar que el atributo viejo existe:
     | notElem oldAttr (attrNames attrs) = Left (AtributoNoExiste [oldAttr]) 
     
@@ -182,11 +184,11 @@ renombre oldAttr newAttr r@(R name attrs tups)
     | oldAttr == newAttr = Left MismoAtributo
 
     -- Si no hay problemas:
-    | otherwise =  let a = map (\(a,t) -> if a == oldAttr then (newAttr, t) 
-                                                          else (a, t)) attrs
+    | otherwise =  let a' = map (\(at,ty) -> if at == oldAttr then (newAttr, ty) 
+                                                          else (at, ty)) attrs
                        
-                       t = Set.map (renameTupla oldAttr newAttr) tups 
-                    in return (R name a t )
+                       t' = Set.map (renameTupla oldAttr newAttr) tups 
+                    in return (R name a' t' )
 
 renameTupla :: Atributo -> Atributo -> Tupla -> Tupla
 renameTupla oldAttr newAttr tup = case Map.lookup oldAttr tup of
@@ -201,35 +203,35 @@ renameTupla oldAttr newAttr tup = case Map.lookup oldAttr tup of
 -- =========================================================
 -- Ver de hacer mas eficiente: 
 proyeccion :: [Atributo] -> Relacion -> Either Error Relacion
-proyeccion attrsProy (R n esquema tuplas)
+proyeccion attrsProy (R n esquema ts)
     | not (null faltantes) =
         Left (AtributoNoExiste  faltantes)
-    | otherwise =
-        let esquema' = construirEsquema attrsProy esquema
-            claves   = Set.fromList attrsProy
+    | otherwise = do
+        esquema' <- construirEsquema attrsProy esquema
+        let claves   = Set.fromList attrsProy
 
-            tuplas'  =
+            ts'  =
                 Set.map
                     (\t -> Map.restrictKeys t claves)
-                    tuplas
+                    ts
 
             nombre' =
                 "π[" ++ intercalate "," attrsProy ++ "](" ++ n ++ ")"
 
-        in Right (R nombre' esquema' tuplas')
+        return (R nombre' esquema' ts')
 
   where
     nombres = attrNames esquema
     faltantes = filter (`notElem` nombres) attrsProy
 
-construirEsquema :: [Atributo] -> [(Atributo,Type)] -> [(Atributo,Type)]
+construirEsquema :: [Atributo] -> [(Atributo,Type)] -> Either Error [(Atributo,Type)]
 construirEsquema attrs esquema =
-    map buscar attrs
+    mapM buscar attrs
   where
     buscar a =
         case lookup a esquema of
-            Just t  -> (a,t)
-            Nothing -> error "imposible: validado antes"
+            Just t  -> Right (a,t)
+            Nothing -> Left (AtributoNoExiste [a])
 -- =========================================================
 -- INTERSECCION 
 -- =========================================================
@@ -255,7 +257,7 @@ naturalJoin (R n0 a0 t0) (R n1 a1 t1) =
                 Map.lookup attr tupla0 == Map.lookup attr tupla1
             ) comunes
 
-        tuplas =
+        ts =
             Set.fromList
                 [ Map.union tupla0 tupla1
                 | tupla0 <- Set.toList t0
@@ -263,14 +265,14 @@ naturalJoin (R n0 a0 t0) (R n1 a1 t1) =
                 , compatibles tupla0 tupla1
                 ]
 
-    in R (n0 ++ " ⋈ " ++ n1) atribs tuplas 
+    in R (n0 ++ " ⋈ " ++ n1) atribs ts 
 
 -- =========================================================
 -- DIVISION
 -- =========================================================
 
 division :: Relacion -> Relacion -> Either Error Relacion
-division r@(R n0 a0 t0) s@(R n1 a1 t1)
+division r@(R _ a0 _) s@(R _ a1 _)
 
     | not (all (`elem` attrNames a0) (attrNames a1)) =
         Left EsquemaIncompatible -- "Error en la Division: el divisor debe ser subconjunto del dividendo"

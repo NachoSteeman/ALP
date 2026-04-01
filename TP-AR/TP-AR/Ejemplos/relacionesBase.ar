@@ -1,226 +1,85 @@
+// Personas;
+// Trabajos;
+// Empresas;
 
-:createRel empleados id:int,nombre:string,edad:int,dept:int
-:createRel departamentos dept:int,nombreDept:string
-:createRel salarios id:int,salario:int
-:createRel proyectos id:int,proyecto:string
-:createRel trabaja id:int,proyecto:string
+:createRel Personas nombre:string, edad:int, ciudad:string;
+:insertRel Personas (Juan, 25, Rosario), (Ana, 40, SantaFe);
 
+:createRel Trabajos nombre:string, salario:int;
+:insertRel Trabajos (Juan, 120000), (Ana, 90000);
 
+:createRel Empresas nombre:string, rubro:string;
+:insertRel Empresas (Juan, IT), (Ana, Finance);
 
-:insertRel empleados
-1,"Juan",25,10;
-2,"Ana",30,20;
-3,"Pedro",40,10;
-4,"Lucia",35,30
 
-:insertRel departamentos
-10,"IT";
-20,"HR";
-30,"Finance"
+Adultos = seleccion[edad > 18](Personas);
+Mayores = seleccion[edad > 65](Personas);
+Jovenes = seleccion[edad < 30](Personas);
 
-:insertRel salarios
-1,1000;
-2,1500;
-3,2000;
-4,1800
+PersonasRosario = seleccion[ciudad = "Rosario"](Personas);
+PersonasSantaFe = seleccion[ciudad = "SantaFe"](Personas);
 
-:insertRel proyectos
-1,"Sistema";
-2,"Web";
-3,"IA";
-4,"Data"
+AdultosRosario = Adultos productoNatural PersonasRosario;
+AdultosSantaFe = Adultos productoNatural PersonasSantaFe;
 
-:insertRel trabaja
-1,"Sistema";
-1,"Web";
-2,"Web";
-3,"IA";
-4,"Data";
-4,"Web"
+Trabajadores = Personas productoNatural Trabajos;
+TrabajadoresEmpresas = Trabajadores productoNatural Empresas;
 
+AltosIngresos = seleccion[salario > 100000](TrabajadoresEmpresas);
+BajosIngresos = seleccion[salario < 50000](TrabajadoresEmpresas);
 
+NombresAdultos = proyeccion[nombre](Adultos);
+NombresMayores = proyeccion[nombre](Mayores);
 
+UnionTest = NombresAdultos union NombresMayores;
+DiffTest = NombresAdultos diferencia NombresMayores;
+InterTest = NombresAdultos interseccion NombresMayores;
 
-seleccion [edad > 30] (empleados)
+ProdTest = Personas producto Empresas;
 
-seleccion [dept = 10] (empleados)
+JoinComplejo = (Personas productoNatural Trabajos) productoNatural Empresas;
 
-seleccion [salario > 1500] (salarios)
+SeleccionCompleja = seleccion[edad > 25 and salario > 80000](JoinComplejo);
 
-seleccion [edad > 20 and edad < 35] (empleados)
+ProyCompleja = proyeccion[nombre, ciudad](SeleccionCompleja);
 
+RenombreTest = renombre[nombre -> persona](Personas);
 
+Nested1 = proyeccion[nombre](seleccion[edad > 30](Personas));
+Nested2 = seleccion[edad > 30](proyeccion[nombre, edad](Personas));
 
+Nested3 = proyeccion[nombre](seleccion[edad > 30 and ciudad = "Rosario"](Personas));
 
+Nested4 = seleccion[not (edad < 18)](Personas);
 
+Nested5 = seleccion[(edad > 20 and ciudad = "Rosario") or (edad > 30 and ciudad = "SantaFe")](Personas);
 
-proyeccion [nombre] (empleados)
+Chain1 = proyeccion[nombre](seleccion[edad > 25](Personas productoNatural Trabajos));
 
-proyeccion [nombre,edad] (empleados)
+Chain2 = proyeccion[nombre](seleccion[salario > 90000](Personas productoNatural Trabajos productoNatural Empresas));
 
-proyeccion [id] (salarios)
+Chain3 = seleccion[salario > 70000](Personas productoNatural Trabajos) diferencia seleccion[salario > 90000](Personas productoNatural Trabajos);
 
+Chain4 = (Personas productoNatural Trabajos) interseccion (Personas productoNatural Empresas);
 
+Chain5 = (Personas producto Empresas) diferencia (Personas productoNatural Empresas);
 
-empleados producto departamentos
+DivisionTest = Trabajadores division Empresas;
 
-empleados producto salarios
+Mega1 = proyeccion[nombre](seleccion[edad > 30](Personas productoNatural Trabajos productoNatural Empresas));
 
+Mega2 = seleccion[salario > 80000](proyeccion[nombre, salario](Personas productoNatural Trabajos));
 
+Mega3 = renombre[nombre -> empleado](proyeccion[nombre](seleccion[salario > 60000](Trabajadores)));
 
-:createRel A x:int
-:createRel B x:int
+Mega4 = (proyeccion[nombre](Personas) union proyeccion[nombre](Trabajadores)) diferencia proyeccion[nombre](Mayores);
 
-:insertRel A
-1;
-2;
-3
+Mega5 = seleccion[not (salario < 50000)](Personas productoNatural Trabajos);
 
-:insertRel B
-3;
-4;
-5
+Final1 = proyeccion[nombre](Mega1);
+Final2 = proyeccion[nombre](Mega2);
+Final3 = Final1 union Final2;
+Final4 = Final3 diferencia NombresMayores;
+Final5 = Final4 interseccion NombresAdultos;
 
-
-A union B
-
-A diferencia B
-
-B diferencia A
-
-A interseccion B
-
-
-
-
-
-empleados productoNatural salarios
-
-empleados productoNatural departamentos
-
-(empleados productoNatural salarios) productoNatural departamentos
-
-
-
-
-
-
-empleados productoNatural salarios
-
-
-
-empleados productoNatural departamentos
-
-
-
-
-seleccion [salario > 1500]
-(
-    empleados productoNatural salarios
-)
-
-
-
-
-proyeccion [nombre]
-(
-    seleccion [salario > 1500]
-    (
-        empleados productoNatural salarios
-    )
-)
-
-
-
-
-
-proyeccion [nombre,nombreDept]
-(
-    empleados productoNatural departamentos
-)
-
-
-
-
-empleados productoNatural trabaja
-
-
-
-
-
-seleccion [proyecto = "Web"]
-(
-    empleados productoNatural trabaja
-)
-
-
-
-
-
-seleccion [salario > 1500]
-(
-    (empleados productoNatural salarios)
-    productoNatural
-    trabaja
-)
-
-
-
-
-
-renombre [nombre -> nombreEmpleado] (empleados)
-
-renombre [salario -> sueldo] (salarios)
-
-
-
-
-
-:createRel cursos alumno:string,curso:string
-:createRel obligatorios curso:string
-
-:insertRel cursos
-"Juan","BD";
-"Juan","SO";
-"Juan","IA";
-"Ana","BD";
-"Ana","SO";
-"Pedro","BD"
-
-:insertRel obligatorios
-"BD";
-"SO"
-
-cursos division obligatorios
-
-
-
-
-
-:createRel dup a:int,b:int
-
-:insertRel dup
-1,2;
-1,2;
-2,3;
-2,3
-
-proyeccion [a] (dup)
-
-seleccion [edad > 100] (empleados)
-
-
-
-
-:createRel X a:int
-:createRel Y b:int
-
-:insertRel X
-1;
-2
-
-:insertRel Y
-3;
-4
-
-X productoNatural Y
+Final5;

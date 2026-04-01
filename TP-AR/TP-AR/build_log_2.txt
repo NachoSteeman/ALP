@@ -1,0 +1,106 @@
+TP-AR> build (lib + exe) with ghc-9.10.3
+Preprocessing library for TP-AR-0.1.0.0...
+Building library for TP-AR-0.1.0.0...
+[3 of 9] Compiling Operations [Source file changed]
+/home/nachost/Documents/LCC/Tercer Anio/Segundo Cuatrimestre/ALP/Practicas/ALP/TP-AR/TP-AR/src/Operations.hs:34:9: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘tuplas’ shadows the existing binding
+      imported from ‘Commons’ at src/Operations.hs:22:1-14
+   |
+34 |     let tuplas = Set.toList t
+   |         ^^^^^^
+
+/home/nachost/Documents/LCC/Tercer Anio/Segundo Cuatrimestre/ALP/Practicas/ALP/TP-AR/TP-AR/src/Operations.hs:91:10: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘c’ shadows the existing binding
+      bound at src/Operations.hs:49:13
+   |
+91 |     PNot c -> do
+   |          ^
+
+/home/nachost/Documents/LCC/Tercer Anio/Segundo Cuatrimestre/ALP/Practicas/ALP/TP-AR/TP-AR/src/Operations.hs:150:28: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘nombre’ shadows the existing binding
+      imported from ‘Commons’ at src/Operations.hs:22:1-14
+    |
+150 | renombrarSoloComunes attrs nombre comunes =
+    |                            ^^^^^^
+
+/home/nachost/Documents/LCC/Tercer Anio/Segundo Cuatrimestre/ALP/Practicas/ALP/TP-AR/TP-AR/src/Operations.hs:155:27: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘nombre’ shadows the existing binding
+      imported from ‘Commons’ at src/Operations.hs:22:1-14
+    |
+155 | renombrarTuplasComunes ts nombre comunes =
+    |                           ^^^^^^
+
+/home/nachost/Documents/LCC/Tercer Anio/Segundo Cuatrimestre/ALP/Practicas/ALP/TP-AR/TP-AR/src/Operations.hs:176:26: warning: [GHC-40910] [-Wunused-matches]
+    Defined but not used: ‘r’
+    |
+176 | renombre oldAttr newAttr r@(R name attrs tups)
+    |                          ^
+
+/home/nachost/Documents/LCC/Tercer Anio/Segundo Cuatrimestre/ALP/Practicas/ALP/TP-AR/TP-AR/src/Operations.hs:187:35: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘a’ shadows the existing binding
+      bound at src/Operations.hs:187:24
+    |
+187 |     | otherwise =  let a = map (\(a,t) -> if a == oldAttr then (newAttr, t) 
+    |                                   ^
+
+/home/nachost/Documents/LCC/Tercer Anio/Segundo Cuatrimestre/ALP/Practicas/ALP/TP-AR/TP-AR/src/Operations.hs:187:37: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘t’ shadows the existing binding
+      bound at src/Operations.hs:190:24
+    |
+187 |     | otherwise =  let a = map (\(a,t) -> if a == oldAttr then (newAttr, t) 
+    |                                     ^
+
+/home/nachost/Documents/LCC/Tercer Anio/Segundo Cuatrimestre/ALP/Practicas/ALP/TP-AR/TP-AR/src/Operations.hs:206:35: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘tuplas’ shadows the existing binding
+      imported from ‘Commons’ at src/Operations.hs:22:1-14
+    |
+206 | proyeccion attrsProy (R n esquema tuplas)
+    |                                   ^^^^^^
+
+/home/nachost/Documents/LCC/Tercer Anio/Segundo Cuatrimestre/ALP/Practicas/ALP/TP-AR/TP-AR/src/Operations.hs:260:9: warning: [GHC-63397] [-Wname-shadowing]
+    This binding for ‘tuplas’ shadows the existing binding
+      imported from ‘Commons’ at src/Operations.hs:22:1-14
+    |
+260 |         tuplas =
+    |         ^^^^^^
+
+/home/nachost/Documents/LCC/Tercer Anio/Segundo Cuatrimestre/ALP/Practicas/ALP/TP-AR/TP-AR/src/Operations.hs:275:15: warning: [GHC-40910] [-Wunused-matches]
+    Defined but not used: ‘n0’
+    |
+275 | division r@(R n0 a0 t0) s@(R n1 a1 t1)
+    |               ^^
+
+/home/nachost/Documents/LCC/Tercer Anio/Segundo Cuatrimestre/ALP/Practicas/ALP/TP-AR/TP-AR/src/Operations.hs:275:21: warning: [GHC-40910] [-Wunused-matches]
+    Defined but not used: ‘t0’
+    |
+275 | division r@(R n0 a0 t0) s@(R n1 a1 t1)
+    |                     ^^
+
+/home/nachost/Documents/LCC/Tercer Anio/Segundo Cuatrimestre/ALP/Practicas/ALP/TP-AR/TP-AR/src/Operations.hs:275:30: warning: [GHC-40910] [-Wunused-matches]
+    Defined but not used: ‘n1’
+    |
+275 | division r@(R n0 a0 t0) s@(R n1 a1 t1)
+    |                              ^^
+
+/home/nachost/Documents/LCC/Tercer Anio/Segundo Cuatrimestre/ALP/Practicas/ALP/TP-AR/TP-AR/src/Operations.hs:275:36: warning: [GHC-40910] [-Wunused-matches]
+    Defined but not used: ‘t1’
+    |
+275 | division r@(R n0 a0 t0) s@(R n1 a1 t1)
+    |                                    ^^
+
+[8 of 9] Compiling Eval [Operations changed]
+[9 of 9] Compiling UtilsMain [Source file changed]
+Preprocessing executable 'TP-AR-exe' for TP-AR-0.1.0.0...
+Building executable 'TP-AR-exe' for TP-AR-0.1.0.0...
+[1 of 2] Compiling Main [UtilsMain changed]
+/home/nachost/Documents/LCC/Tercer Anio/Segundo Cuatrimestre/ALP/Practicas/ALP/TP-AR/TP-AR/app/Main.hs:1:1: warning: [GHC-85401] [-Wmissing-export-lists]
+    The export item ‘module Main’ is missing an export list
+  |
+1 | module Main where
+  | ^
+
+[3 of 3] Linking .stack-work/dist/x86_64-linux/ghc-9.10.3/build/TP-AR-exe/TP-AR-exe [Objects changed]
+TP-AR> copy/register
+Installing library in /home/nachost/Documents/LCC/Tercer Anio/Segundo Cuatrimestre/ALP/Practicas/ALP/TP-AR/TP-AR/.stack-work/install/x86_64-linux/61b2663e66b637611353c82eccf1290cc9a46e9c131a0735fecd6bb7b03fb170/9.10.3/lib/x86_64-linux-ghc-9.10.3-b4c3/TP-AR-0.1.0.0-8crkKZkVkRd4Uidvtio0mU
+Installing executable TP-AR-exe in /home/nachost/Documents/LCC/Tercer Anio/Segundo Cuatrimestre/ALP/Practicas/ALP/TP-AR/TP-AR/.stack-work/install/x86_64-linux/61b2663e66b637611353c82eccf1290cc9a46e9c131a0735fecd6bb7b03fb170/9.10.3/bin
+Registering library for TP-AR-0.1.0.0...

@@ -1,33 +1,63 @@
--- RELACION SIMPLE
-Empleados
+Personas
 
--- UNION
-Empleados union Departamentos
+seleccion[edad > 30](Personas)
 
--- PRODUCTO
-Empleados producto Departamentos
+proyeccion[nombre](Personas)
 
--- SELECT
-select [ edad > 30 ] ( Empleados )
+proyeccion[nombre, ciudad](Personas)
 
--- PROJECT
-project [ nombre, edad ] ( Empleados )
+seleccion[edad > 25 and ciudad = "Rosario"](Personas)
 
--- RENAME
-rename [ nombre -> nombreEmpleado ] ( Empleados )
+seleccion[not (edad < 18)](Personas)
 
--- GROUP
-group [ departamento ; count(nombre), avg(edad) ] ( Empleados )
+seleccion[edad > 20 or ciudad = "SantaFe"](Personas)
 
--- NATURAL JOIN
-Empleados naturaljoin Departamentos
+Personas union Personas
 
--- THETA JOIN
-Empleados join [ Empleados.depto = Departamentos.id ] Departamentos
+Personas diferencia Personas
 
--- EXPRESION COMPLEJA
-select [ edad > 30 and activo = true ] (
-    project [ nombre, edad ] (
-        Empleados naturaljoin Departamentos
-    )
-)
+Personas interseccion Personas
+
+Personas producto Trabajos
+
+Personas naturaljoin Trabajos
+
+Personas naturaljoin Empresas
+
+renombre[nombre -> persona](Personas)
+
+proyeccion[nombre](seleccion[edad > 30](Personas))
+
+Adultos = seleccion[edad > 18](Personas)
+
+Mayores = seleccion[edad > 65](Personas)
+
+NombresAdultos = proyeccion[nombre](Adultos)
+
+PersonasTrabajando = Personas naturaljoin Trabajos
+
+AltosIngresos = seleccion[salario > 100000](PersonasTrabajando)
+
+EmpresasGrandes = seleccion[salario > 200000](Trabajos)
+
+PersEmp = Personas naturaljoin Empresas
+
+PersonasRosario = seleccion[ciudad = "Rosario"](Personas)
+
+RosarinosTrabajando = PersonasRosario naturaljoin Trabajos
+
+Renombrada = renombre[nombre -> persona](Personas)
+
+CursosAlumno = Cursos naturaljoin Inscripciones
+
+AlumnosCurso = proyeccion[nombre](CursosAlumno)
+
+PersonasSinTrabajo = Personas diferencia PersonasTrabajando
+
+PersonasConTrabajo = Personas interseccion PersonasTrabajando
+
+PersonasXEmpresas = Personas producto Empresas
+
+DivisionTest = division(Inscripciones, Cursos)
+
+Final = proyeccion[nombre](seleccion[edad > 30](Personas naturaljoin Trabajos))
