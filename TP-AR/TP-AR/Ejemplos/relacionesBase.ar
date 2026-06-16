@@ -83,3 +83,10 @@ Final4 = Final3 diferencia NombresMayores;
 Final5 = Final4 interseccion NombresAdultos;
 
 Final5;
+
+
+
+
+:defineOP DifSimetrica(R, S) (R union S) diferencia (R interseccion S);
+:defineOP SoloNombres(Relacion) proyeccion[nombre, salario](Relacion);
+

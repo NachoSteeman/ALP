@@ -16,7 +16,8 @@ module Commons (
     emptyContext,
     Error(..),
     Command(..),
-    TopLevel(..)
+    TopLevel(..),
+    subst
 ) where
 
 import qualified Data.Map as Map
@@ -46,7 +47,7 @@ data Type = PInt
           | PBool
           deriving (Eq, Show)
 
-
+type RelName  = String
 type Atributo = String
 type Err      = String
 
@@ -66,6 +67,7 @@ data Expr = ERelacion String
           | EInterseccion Expr Expr
           | ENaturalJoin  Expr Expr 
           | EDiv          Expr Expr
+          | ECall         NombreOp [Expr]
           deriving (Eq, Show)
 
 
@@ -93,8 +95,8 @@ type NombreOp  = String
 -- Mapa de nombres de relaciones a relaciones
 type EnvRel = Map.Map NombreRel Relacion         
 
--- Mapa de operaciones definidas por el usuario
-type EnvOp  = Map.Map NombreOp Expr
+-- Mapa de operaciones definidas por el usuario: guarda (Lista de Parámetros, Cuerpo de la Expresión)
+type EnvOp  = Map.Map NombreOp ([Atributo], Expr)
 
 
 -- El contexto nos sirve para llevar todas las relaciones y operaciones definidas por el usuario
@@ -134,8 +136,8 @@ data Error = RelacionNoExiste NombreRel
            | ErrorEvaluacion String
 
            | AtributosNoCompatibles
-
            | TiposIncompatibles
+           | ErrorArgumentos NombreOp Int Int -- Nombre, Esperados, Recibidos
   deriving Show
 
 
@@ -147,11 +149,11 @@ data Command = Quit
              | Clear
              | Browse
              | Reload
-             | Compile String                       -- :compile "archivo"
+             | Compile String                       
              | CreateRel NombreRel [(Atributo, Type)]
              | InsertRel NombreRel [[Valor]]
              | DropRel   NombreRel
-             | DefineOP  NombreOp Expr
+             | DefineOP  NombreOp [Atributo] Expr
              deriving Show
 
 
@@ -161,3 +163,19 @@ data TopLevel
   | TAssign  NombreRel Expr
   | TCmd     Command
   deriving Show
+
+-- Realiza la substitución de parámetros por argumentos en una expresión.
+subst :: Map.Map RelName Expr -> Expr -> Expr
+subst m (ERelacion name)    = case Map.lookup name m of 
+                                Nothing -> ERelacion name
+                                Just expr -> expr 
+subst m (ESeleccion c e)    = ESeleccion c (subst m e)
+subst m (EProyeccion as e)  = EProyeccion as (subst m e)
+subst m (EUnion e1 e2)      = EUnion (subst m e1) (subst m e2)
+subst m (EDiff e1 e2)       = EDiff (subst m e1) (subst m e2)
+subst m (EProd e1 e2)       = EProd (subst m e1) (subst m e2)
+subst m (EInterseccion e1 e2) = EInterseccion (subst m e1) (subst m e2)
+subst m (ENaturalJoin e1 e2) = ENaturalJoin (subst m e1) (subst m e2)
+subst m (EDiv e1 e2)        = EDiv (subst m e1) (subst m e2)
+subst m (ERenombre o n e)   = ERenombre o n (subst m e)
+subst m (ECall name args)   = ECall name (map (subst m) args)

@@ -23,7 +23,7 @@ import Commons
 prettyRelacion :: Relacion -> String
 prettyRelacion (R nom atribs ts)
     | Set.null ts =
-        printf "Relación '%s' (vacía)\nEsquema: [%s]\n"
+        printf "Relación '%s' (vacía)\nAtributos: [%s]\n"
                nom
                (intercalate ", " (map fst atribs))
 
@@ -33,8 +33,7 @@ prettyRelacion (R nom atribs ts)
             separator = makeSeparator atribList
             rows      = map (makeRow atribList) (Set.toList ts)
 
-        in unlines ([separator, header, separator] ++ rows ++ [separator])
-
+        in unlines ([separator, header, separator] ++ rows ++ [separator]) -- Imprimo la tabla con separadores
 
 
 -- =========================================================
@@ -80,7 +79,7 @@ prettyContext ctx =
             if null ops
             then "No hay operaciones definidas.\n"
             else "Operaciones:\n" ++
-                 unlines (map (\(n, _) -> n) ops)
+                 unlines (map (\(n, (ps, _)) -> n ++ "(" ++ intercalate ", " ps ++ ")") ops)
 
     in relStr ++ "\n" ++ opStr
 
@@ -95,7 +94,7 @@ prettyCond c = prettyCondPrec 0 c
 
 
 prettyCondPrec :: Int -> Cond -> String
-prettyCondPrec _ PTrue  = "⊤"
+prettyCondPrec _ PTrue  = "T"
 prettyCondPrec _ PFalse = "⊥"
 
 prettyCondPrec _ (PEq attr val) =
@@ -119,7 +118,7 @@ prettyCondPrec p (PAnd c1 c2) =
 
 prettyCondPrec p (POr c1 c2) =
     parensIf (p > 0) $
-        prettyCondPrec 1 c1 ++ " ∨ " ++ prettyCondPrec 1 c2
+        prettyCondPrec 1 c1 ++ " v " ++ prettyCondPrec 1 c2
 
 prettyCondPrec _ (PNot c) =
     "¬" ++ prettyCondPrec 3 c
@@ -156,12 +155,14 @@ makeRow atrib tupla =
 -- PADDING
 -- =========================================================
 
+-- pad: fija el largo de un string
 pad :: Int -> String -> String
 pad n s
-    | length s >= n = take n s
-    | otherwise     = s ++ replicate (n - length s) ' '
+    | length s >= n = take n s -- Si el largo es mayor lo trunco
+    | otherwise     = s ++ replicate (n - length s) ' ' -- Sino lo completo con espacios
 
 
+-- prettyValorPadded: fija el largo de un valor
 prettyValorPadded :: Int -> Maybe Valor -> String
 prettyValorPadded n Nothing  = pad n "NULL"
 prettyValorPadded n (Just v) = pad n (prettyValor v)
@@ -172,10 +173,13 @@ prettyValorPadded n (Just v) = pad n (prettyValor v)
 -- EXPRESIONES
 -- =========================================================
 
+-- prettyExpr: imprime una expresion
 prettyExpr :: Expr -> String
 prettyExpr expr = prettyExprPrec 0 expr
 
 
+
+-- prettyExprPrec: hace implicita la precedencia de operadores poniendo parentesis cuando es necesario
 prettyExprPrec :: Int -> Expr -> String
 prettyExprPrec _ (ERelacion name) =
     name
@@ -190,7 +194,7 @@ prettyExprPrec p (EProyeccion atrib e) =
 
 prettyExprPrec p (ERenombre old new e) =
     parensIf (p > 5) $
-        "ρ[" ++ old ++ " → " ++ new ++ "](" ++ prettyExprPrec 0 e ++ ")"
+        "ρ[" ++ old ++ " -> " ++ new ++ "](" ++ prettyExprPrec 0 e ++ ")"
 
 prettyExprPrec p (EUnion e1 e2) =
     parensIf (p > 2) $
@@ -198,11 +202,11 @@ prettyExprPrec p (EUnion e1 e2) =
 
 prettyExprPrec p (EDiff e1 e2) =
     parensIf (p > 2) $
-        prettyExprPrec 3 e1 ++ " − " ++ prettyExprPrec 3 e2
+        prettyExprPrec 3 e1 ++ " - " ++ prettyExprPrec 3 e2
 
 prettyExprPrec p (EProd e1 e2) =
     parensIf (p > 3) $
-        prettyExprPrec 4 e1 ++ " × " ++ prettyExprPrec 4 e2
+        prettyExprPrec 4 e1 ++ " x " ++ prettyExprPrec 4 e2
 
 prettyExprPrec p (EInterseccion e1 e2) =
     parensIf (p > 2) $
@@ -216,12 +220,11 @@ prettyExprPrec p (EDiv e1 e2) =
     parensIf (p > 3) $
         prettyExprPrec 4 e1 ++ " ÷ " ++ prettyExprPrec 4 e2
 
+prettyExprPrec _ (ECall name args) =
+    name ++ "(" ++ intercalate ", " (map prettyExpr args) ++ ")"
 
 
--- =========================================================
--- UTILIDAD
--- =========================================================
-
+-- parensIf: pone parentesis si es necesario
 parensIf :: Bool -> String -> String
 parensIf True s  = "(" ++ s ++ ")"
 parensIf False s = s

@@ -17,19 +17,27 @@ import qualified Data.Map as Map
 evalExpr :: Expr -> StateError Relacion
 evalExpr expr = case expr of
 
-  -- Operaciones basicas:
   ERelacion name -> do
-    st <- get 
-    let c    = ctxt st
-        rels = relaciones c
-        ops  = operaciones c
+    rels <- getRels
     
-    case Map.lookup name rels of    
+    case Map.lookup name rels of  -- Busco la relacion en el contexto
       Just r  -> return r
-      Nothing -> case Map.lookup name ops of
-                   Just exprOp -> evalExpr exprOp
-                   Nothing     -> throw (RelacionNoExiste name)
+      Nothing -> throw (RelacionNoExiste name)
 
+  -- Llamadas a operaciones definidas por el usuario:
+  ECall name args -> do
+    ops <- getOps
+    case Map.lookup name ops of  -- Busco la operacion en el contexto
+      Nothing -> throw (OperacionNoExiste name)
+      Just (params, body) -> do
+        if length args /= length params
+          then throw (ErrorArgumentos name (length params) (length args))
+          else do
+            let subMap = Map.fromList (zip params args) -- Creo el mapa de substitucion
+                exprSubst = subst subMap body           -- Realizo la substitucion
+            evalExpr exprSubst
+
+  -- Operaciones elementales:
   ESeleccion cond e -> do
     r <- evalExpr e
     evalEither (seleccion r cond)
@@ -74,13 +82,14 @@ evalExpr expr = case expr of
     r <- evalExpr e
     evalEither (renombre oldAttr newAttr r)
 
-  _ -> throw (OperacionNoExiste "Operacion no soportada") -- No es necesario pero lo dejo por buena practica 
 
-
+-- evalEither: devuelve la relacion o propaga el error
 evalEither :: Either Error a -> StateError a
 evalEither (Left err)  = throw err 
 evalEither (Right val) = return val
 
+
+-- evalAndPrint: muestra la relacion por pantalla o el error
 evalAndPrint :: State -> Expr -> IO ()
 evalAndPrint s expr =
   case runStateError (evalExpr expr) s of

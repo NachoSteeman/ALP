@@ -45,7 +45,7 @@ import Data.Char
     ':'          { TColon }
 
 
-    -- Comandos REPL (el ':' está incorporado al token):
+    -- Comandos REPL:
     quit         { TQuit }
     help         { THelp }
     clear        { TClear }
@@ -57,12 +57,13 @@ import Data.Char
     dropRel      { TDropRel }
     defineOP     { TDefineOP }
 
-    -- Literales:
+    -- Valores:
     null         { TNull }
     ident        { TIdentifier $$ }
     int          { TInt $$ }
     string       { TString $$ }
 
+-- Orden de precedencia de operadores (de menor a mayor):
 %left union diferencia interseccion
 %left productoNatural
 %left producto division
@@ -72,14 +73,17 @@ import Data.Char
 
 %%
 
+
 Program
     : TopList       { $1 }
 
+-- TopList: Secuencia de Top (para poder procesar varias consultas seguidas de un archivo)
 TopList
     : Top                   { [$1] }
     | TopList ';' Top       { $1 ++ [$3] }
     | TopList ';'           { $1 }
 
+-- Top: Una asignacion, una consulta (expresion) o un comando
 Top
     : ident '=' Expr        { TAssign $1 $3 }
     | Expr                  { TExpr $1 }
@@ -98,15 +102,24 @@ Cmd
     | createRel ident AttrDefList   { CreateRel $2 $3 }
     | insertRel ident TuplaList     { InsertRel $2 $3 }
     | dropRel   ident               { DropRel $2 }
-    | defineOP  ident Expr          { DefineOP $2 $3 }
+    | defineOP  ident '(' ParamList ')' Expr { DefineOP $2 $4 $6 }
 
+
+-- ParamList: para poder tomar varios parametros en una operacion
+ParamList
+    : ident                         { [$1] }
+    | ParamList ',' ident           { $1 ++ [$3] }
+
+-- AttrDefList: para poder definir varios atributos en una relacion
 AttrDefList
     : AttrDef                       { [$1] }
     | AttrDefList ',' AttrDef       { $1 ++ [$3] }
 
+-- AttrDef: para poder definir un atributo en una relacion con su nombre y tipo
 AttrDef
     : ident ':' ident               { ($1, parseType $3) }
 
+-- TuplaList: para poder insertar varias tuplas seguidas en una Relacion
 TuplaList
     : TuplaExp                      { [$1] }
     | TuplaList ',' TuplaExp        { $1 ++ [$3] }
@@ -121,6 +134,7 @@ Tupla
 TuplaVal
     : Value                         { $1 }
     | ident                         { VString $1 }
+
 
 -- -------------------------------------------------------
 -- Expresiones
@@ -148,7 +162,12 @@ BaseExpr
     | proyeccion '[' AttrList ']' '(' Expr ')'          { EProyeccion $3 $6 }
     | renombre   '[' ident '->' ident ']' '(' Expr ')'  { ERenombre $3 $5 $8 }
     | '(' Expr ')'                                       { $2 }
+    | ident '(' ExprList ')'                             { ECall $1 $3 }
     | ident                                              { ERelacion $1 }
+
+ExprList
+    : Expr                          { [$1] }
+    | ExprList ',' Expr             { $1 ++ [$3] }
 
 AttrList
     : ident                    { [$1] }
@@ -322,7 +341,7 @@ lexer (c:cs)
   | c == '!' && not (null cs) && head cs == '='
       = prepend TNeq (tail cs)
 
-  -- ':' seguido de letras → comando REPL si es conocido, sino TColon + keyword
+  -- ':' comando REPL si es conocido, sino TColon + keyword
   | c == ':' && not (null cs) && isAlpha (head cs) =
       let (word, rest) = span isAlphaNum cs
       in case keywordCmd word of
@@ -331,22 +350,25 @@ lexer (c:cs)
                          Left err -> Left err
                          Right ts -> Right (TColon : keyword word : ts)
 
-  -- ':' solo → separador atrib:tipo
+  -- ':' separador atrib:tipo
   | c == ':' = add TColon
 
   -- Comentarios de línea:
   | c == '/' && not (null cs) && head cs == '/'
       = lexer (dropWhile (/= '\n') cs)
 
+  -- Números
   | isDigit c =
       let (num, rest) = span isDigit (c:cs)
       in prepend (TInt (read num)) rest
 
+  -- Strings
   | c == '"' =
       case span (/= '"') cs of
         (str, '"':rest) -> prepend (TString str) rest
         _               -> Left "String sin cerrar"
 
+  -- Identificadores
   | isAlpha c || c == '_' =
       let (word, rest) = span (\x -> isAlphaNum x || x == '_') (c:cs)
       in prepend (keyword word) rest
@@ -359,6 +381,9 @@ lexer (c:cs)
         Left err -> Left err
         Right ts -> Right (tok : ts)
 
+
+-- Palabras reservadas:
+
 keyword :: String -> Token
 keyword w = case w of
     "seleccion"       -> TSelect
@@ -370,6 +395,7 @@ keyword w = case w of
     "producto"        -> TProducto
     "division"        -> TDivision
     "productoNatural" -> TNaturalJoin
+    
     "and"             -> TAnd
     "or"              -> TOr
     "not"             -> TNot
@@ -378,7 +404,6 @@ keyword w = case w of
     "null"            -> TNull
     _                 -> TIdentifier w
 
--- El ':' ya fue consumido, recibe solo la palabra:
 keywordCmd :: String -> Maybe Token
 keywordCmd w = case w of
     "quit"      -> Just TQuit

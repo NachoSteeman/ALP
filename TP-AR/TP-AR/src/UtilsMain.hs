@@ -8,7 +8,7 @@ module UtilsMain
   , insertRel
   , dropRel
   , defineOp
-  , execute
+  , executeExpr
   , helpText
   , bienvenida
   , iprompt
@@ -40,52 +40,41 @@ import Parser
 import Eval
 import Optimizador
 
+
 ---------------------------------------------------------------
 -- Operaciones para el contexto:
 ---------------------------------------------------------------
 
-
 -- Para manejar definicion de operaciones:
-defineOp :: NombreOp -> Expr -> StateError ()
-defineOp name expr = do
-  st <- get
-  let c   = ctxt st
-      ops = operaciones c
-  when (Map.member name ops) $ throw (OperacionYaExiste name)
+defineOp :: NombreOp -> [Atributo] -> Expr -> StateError ()
+defineOp name params expr = do
+  ops <- getOps
+  when (Map.member name ops) $ throw (OperacionYaExiste name) -- Si la operacion ya esta
 
-  let newOps  = Map.insert name expr ops
-      newCtxt = c { operaciones = newOps }
-  put st { ctxt = newCtxt }
+  modifyOps (Map.insert name (params, expr))
 
 
 -- Para crear una relacion:
 createRel :: NombreRel -> [(Atributo, Type)] -> StateError ()
 createRel name attrs = do
-  st <- get
-  let c    = ctxt st
-      rels = relaciones c
-  when (Map.member name rels) $ throw (RelacionYaExiste name)
+  rels <- getRels
+  when (Map.member name rels) $ throw (RelacionYaExiste name) -- Si la relacion ya existe
   let nuevaRel = R name attrs Set.empty
-      newRels  = Map.insert name nuevaRel rels
-      newCtxt  = c { relaciones = newRels }
-  put st { ctxt = newCtxt }
+  modifyRels (Map.insert name nuevaRel)
 
 
 insertRel :: NombreRel -> [[Valor]] -> StateError ()
 insertRel name valss = do
-  st <- get
-  let c    = ctxt st
-      rels = relaciones c
+  rels <- getRels
   case Map.lookup name rels of
-    Nothing -> throw (RelacionNoExiste name)
+    Nothing -> throw (RelacionNoExiste name) -- Si la relacion no esta
     Just (R relName attrs oldTups) -> do
-      when (any (\vs -> length vs /= length attrs) valss) $
-        throw EsquemaIncompatible
-      when (not $ all (checkTupleTypes attrs) valss) $
-        throw TiposIncompatibles
+      when (any (\vs -> length vs /= length attrs) valss) $ throw EsquemaIncompatible -- Si la cantidad de atributos es incorrecta 
+      when (not $ all (checkTupleTypes attrs) valss) $ throw TiposIncompatibles  -- Si no tiene los tipos correctos
+         
       let newTuplas = map (\vs -> Map.fromList (zip (map fst attrs) vs)) valss
           newRel    = R relName attrs (Set.union oldTups (Set.fromList newTuplas))
-      put st { ctxt = c { relaciones = Map.insert name newRel rels } }
+      modifyRels (Map.insert name newRel)
 
 
 checkTupleTypes ::  [(Atributo, Type)] ->  [Valor] -> Bool
@@ -104,14 +93,9 @@ checkType _ _ = False
 
 dropRel :: NombreRel -> StateError ()
 dropRel name = do
-  st <- get
-  let c    = ctxt st
-      rels = relaciones c
-  when (not (Map.member name rels)) $
-    throw (RelacionNoExiste name)
-  let newRels = Map.delete name rels
-      newCtxt = c { relaciones = newRels }
-  put st { ctxt = newCtxt }
+  rels <- getRels
+  when (not (Map.member name rels)) $ throw (RelacionNoExiste name)
+  modifyRels (Map.delete name)
 
 
 -- Para realizar una vista:
@@ -119,20 +103,30 @@ assignRel :: NombreRel -> Expr -> StateError ()
 assignRel name expr = do
   optExpr <- optimizador expr
   rel <- evalExpr optExpr   -- optimizamos y evaluamos la expresión
-  st  <- get
   
-  let c     = ctxt st
-      rels  = relaciones c
-      -- insertamos o reemplazamos:
-      newRel  = rel { nombre = name }
-      newRels = Map.insert name newRel rels
-      newCtxt = c { relaciones = newRels }
-  put st { ctxt = newCtxt }
+  -- insertamos o reemplazamos:
+  let newRel  = rel { nombre = name }
+  modifyRels (Map.insert name newRel)
 
 
--- Ejecuta una expresion, si la pudo evaluar bien retorna el nuevo estado y muestra el resultado de la operacion 
-execute :: Expr -> State -> IO State
-execute expr st =
+
+-- executeTop: Ejecuta una operacion de alto nivel, si la pudo evaluar bien retorna el nuevo estado y muestra el resultado de la operacion 
+executeTop :: State -> TopLevel -> InputT IO (Maybe State)
+executeTop st top = case top of
+
+  TExpr e ->
+    Just <$> lift (executeExpr e st)
+
+  TAssign name expr ->
+    case runStateError (assignRel name expr) st of
+      Left err      -> lift $ putStrLn ("Error: " ++ show err) >> return (Just st)
+      Right (_, s') -> lift $ putStrLn ("Relación `" ++ name ++ "` definida.") >> return (Just s')
+
+  TCmd cmd -> executeCmd st cmd
+
+-- executeExpr: para ejecutar  expresiones 
+executeExpr :: Expr -> State -> IO State
+executeExpr expr st =
   case runStateError (optimizador expr >>= evalExpr) st of
     Left err -> do
       putStrLn ("Error: " ++ show err)
@@ -142,20 +136,7 @@ execute expr st =
       return newSt
 
 
-executeTop :: State -> TopLevel -> InputT IO (Maybe State)
-executeTop st top = case top of
-
-  TExpr e ->
-    Just <$> lift (execute e st)
-
-  TAssign name expr ->
-    case runStateError (assignRel name expr) st of
-      Left err      -> lift $ putStrLn ("Error: " ++ show err) >> return (Just st)
-      Right (_, s') -> lift $ putStrLn ("Relación `" ++ name ++ "` definida.") >> return (Just s')
-
-  TCmd cmd -> executeCmd st cmd
-
-
+-- executeCmd: para ejecutar comandos
 executeCmd :: State -> Command -> InputT IO (Maybe State) -- Maybe porque si nos llega el comando quit salimos 
 executeCmd st cmd = case cmd of
 
@@ -194,8 +175,8 @@ executeCmd st cmd = case cmd of
       Left err      -> lift $ putStrLn ("Error: " ++ show err) >> return (Just st)
       Right (_, s') -> lift $ putStrLn ("Relación `" ++ name ++ "` eliminada.") >> return (Just s')
 
-  DefineOP name expr ->
-    case runStateError (defineOp name expr) st of
+  DefineOP name params expr ->
+    case runStateError (defineOp name params expr) st of
       Left err      -> lift $ putStrLn ("Error: " ++ show err) >> return (Just st)
       Right (_, s') -> lift $ putStrLn ("Operación `" ++ name ++ "` definida.") >> return (Just s')
 
@@ -253,18 +234,18 @@ trim = f . f
 helpText :: String
 helpText = unlines
   [ "Comandos disponibles:"
-  , "  :help                          Mostrar esta ayuda"
-  , "  :quit                          Salir del intérprete"
-  , "  :clear                         Limpiar la consola"
-  , "  :browse                        Ver relaciones y operaciones en scope"
-  , "  :compile \"archivo\"             Cargar un archivo"
-  , "  :reload                        Recargar el último archivo"
-  , "  :createRel nombre a:t, b:t     Crear una relación"
-  , "  :insertRel nombre v,v ; v,v    Insertar tuplas"
-  , "  :dropRel nombre                Eliminar una relación"
-  , "  :defineOP nombre expr          Definir una operación"
-  , "  nombre = expr                  Definir una vista"
-  , "  expr                           Evaluar una expresión"
+  , "  :help                                      Mostrar comandos disponibles"
+  , "  :quit                                      Salir del intérprete"
+  , "  :clear                                     Limpiar la consola"
+  , "  :browse                                    Ver relaciones y operaciones definidas"
+  , "  :compile \"archivo\"                       Cargar un archivo"
+  , "  :reload                                    Recargar el último archivo"
+  , "  :createRel nombre a:t, b:t                 Crear una relación"
+  , "  :insertRel nombre v,v ; v,v                Insertar tuplas"
+  , "  :dropRel nombre                            Eliminar una relación"
+  , "  :defineOP nombre(P1,..,Pn) expr(P1,..,Pn)  Definir una operación"
+  , "  nombre = expr                              Definir una vista"
+  , "  expr                                       Evaluar una expresión"
   ]
 
 bienvenida :: IO ()
