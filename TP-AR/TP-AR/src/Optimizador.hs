@@ -3,6 +3,7 @@ module Optimizador (optimizador) where
 import Commons
 import Monads
 import qualified Data.Map as Map
+import Eval (subst)
 
 -- optimizador: optimiza la expresion
 optimizador :: Expr -> StateError Expr

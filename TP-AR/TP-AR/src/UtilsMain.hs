@@ -72,7 +72,7 @@ insertRel name valss = do
       when (any (\vs -> length vs /= length attrs) valss) $ throw EsquemaIncompatible -- Si la cantidad de atributos es incorrecta 
       when (not $ all (checkTupleTypes attrs) valss) $ throw TiposIncompatibles  -- Si no tiene los tipos correctos
          
-      let newTuplas = map (\vs -> Map.fromList (zip (map fst attrs) vs)) valss
+      let newTuplas = map (\vs -> Map.fromList (zip (map fst attrs) vs)) valss -- Mapeamos los valores con sus atributos
           newRel    = R relName attrs (Set.union oldTups (Set.fromList newTuplas))
       modifyRels (Map.insert name newRel)
 
@@ -184,6 +184,7 @@ executeCmd st cmd = case cmd of
 -- Para archivos:
 ---------------------------------------------------------------
 
+-- Compila una lista de archivos
 compileFiles :: [String] -> State -> InputT IO State
 compileFiles xs s = foldM step s xs
   where
@@ -193,6 +194,7 @@ compileFiles xs s = foldM step s xs
                 else return st
 
 
+-- Compila un archivo: abre el archivo, lo parsea, ejecuta las operaciones y muestra los errores si los hay
 compileFile :: State -> String -> InputT IO State
 compileFile state f = do
   lift $ putStrLn ("Abriendo " ++ f ++ "...")
@@ -213,7 +215,7 @@ compileFile state f = do
         Nothing  -> return st   -- :quit dentro de archivo no mata el proceso
         Just st' -> return st'
 
-
+-- Compila una expresion y muestra el resultado si no hay errores
 compileExpr :: State -> String -> InputT IO (Maybe State)
 compileExpr state x =
   case parse' x of
@@ -227,6 +229,7 @@ compileExpr state x =
 -- Helpers
 ---------------------------------------------------------------
 
+-- trim: remueve los espacios en blanco al inicio y al final de un string
 trim :: String -> String
 trim = f . f
   where f = reverse . dropWhile isSpace

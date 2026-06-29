@@ -142,7 +142,7 @@ productoCartesiano (R n0 a0 t0) (R n1 a1 t1) =
 
         t   = prodCartAux t0' t1'
 
-        n   = n0 ++ "*" ++ n1
+        n   = n0 ++ "x" ++ n1
 
     in R n a t
 
@@ -201,7 +201,6 @@ renameTupla oldAttr newAttr tup = case Map.lookup oldAttr tup of
 -- =========================================================
 -- PROYECCION
 -- =========================================================
--- Ver de hacer mas eficiente: 
 proyeccion :: [Atributo] -> Relacion -> Either Error Relacion
 proyeccion attrsProy (R n esquema ts)
     | not (null faltantes) =
@@ -250,7 +249,7 @@ naturalJoin (R n0 a0 t0) (R n1 a1 t1) =
 
     let comunes = filter (`elem` attrNames a1) (attrNames a0)
 
-        atribs = nub (a0 ++ a1)
+        atribs = nub (a0 ++ a1) -- eliminamos los atributos repetidos
 
         compatibles tupla0 tupla1 =
             all (\attr ->
