@@ -1,13 +1,11 @@
 module Eval (
   evalExpr,
-  evalAndPrint,
   subst
 ) where
 
 
 import Commons
 import Operations
-import PrettyPrinter
 import Monads
 import qualified Data.Map as Map
 
@@ -103,11 +101,4 @@ evalEither :: Either Error a -> StateError a
 evalEither (Left err)  = throw err 
 evalEither (Right val) = return val
 
-
--- evalAndPrint: muestra la relacion por pantalla o el error
-evalAndPrint :: State -> Expr -> IO ()
-evalAndPrint s expr =
-  case runStateError (evalExpr expr) s of
-    Left err -> print err
-    Right (rel, _) -> putStrLn (prettyRelacion rel)
 

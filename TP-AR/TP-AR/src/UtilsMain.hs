@@ -84,10 +84,11 @@ checkTupleTypes _ _ = False
 
 
 checkType :: Type -> Valor -> Bool
+checkType _     VNull = True    -- El valor nulo es compatible con cualquier tipo
 checkType PInt (VInt _) = True
 checkType PString (VString _) = True
 checkType PBool (VBool _) = True
-checkType _ _ = False
+checkType _ _ = False        
 
 
 

@@ -8,7 +8,6 @@ copyright:           "2026 Author name here"
 
 extra-source-files:
 - README.md
-- CHANGELOG.md
 
 # Metadata used when publishing your package
 # synopsis:            Short description of your package
@@ -62,14 +61,3 @@ executables:
     - directory
     - pretty
     - transformers
-tests:
-  TP-AR-test:
-    main:                Spec.hs
-    source-dirs:         test
-    ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    dependencies:
-    - TP-AR
-

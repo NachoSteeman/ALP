@@ -130,27 +130,33 @@ diferencia (R n0 a0 t0) (R n1 a1 t1)
 
 productoCartesiano :: Relacion -> Relacion -> Relacion
 productoCartesiano (R n0 a0 t0) (R n1 a1 t1) = 
-    let comunes = filter (`elem` attrNames a1) (attrNames a0)
+    let comunes = filter (`elem` attrNames a1) (attrNames a0) -- Me quedo con todos los atributos en comun 
 
+        -- Renombramos los atributos
         a0' = renombrarSoloComunes a0 n0 comunes
         a1' = renombrarSoloComunes a1 n1 comunes
 
+        -- Renombramos las tuplas
         t0' = renombrarTuplasComunes t0 n0 comunes
         t1' = renombrarTuplasComunes t1 n1 comunes
 
-        a   =  (a0' ++ a1')
+        a   =  (a0' ++ a1') -- Concateno los esquemas
 
-        t   = prodCartAux t0' t1'
+        t   = prodCartAux t0' t1' -- Hago el producto cartesiano
 
-        n   = n0 ++ "x" ++ n1
+        n   = n0 ++ "x" ++ n1 -- Nuevo nombre
 
     in R n a t
 
+-- renombrarSoloComunes: dado un esquema, un nombre de relacion y los atributos en comun, 
+-- renombra los atributos en comun agregandoles el nombre de la relacion al final
 renombrarSoloComunes :: [(Atributo,Type)] -> String -> [Atributo] -> [(Atributo,Type)]
 renombrarSoloComunes attrs name comunes =
     map (\(a, t) -> if a `elem` comunes then (a ++ "-" ++ name, t) 
                                         else (a, t)) attrs
 
+-- renombrarTuplasComunes: dado un conjunto de tuplas, un nombre de relacion y los atributos en comun, 
+-- renombra los atributos en comun de las tuplas agregandoles el nombre de la relacion al final
 renombrarTuplasComunes :: Set.Set Tupla -> String -> [Atributo] -> Set.Set Tupla
 renombrarTuplasComunes ts name comunes =
     Set.map (\tupla ->
@@ -161,6 +167,8 @@ renombrarTuplasComunes ts name comunes =
         ) tupla
     ) ts
 
+-- prodCartAux: dado dos conjuntos de tuplas (de relaciones que no tienen atributos en comun), 
+-- realiza el producto cartesiano entre estos.
 prodCartAux :: Set.Set Tupla -> Set.Set Tupla -> Set.Set Tupla
 prodCartAux setA setB =
     Set.fromList
@@ -176,12 +184,12 @@ renombre :: Atributo -> Atributo -> Relacion -> Either Error Relacion
 renombre oldAttr newAttr (R name attrs tups)
     -- Validar que el atributo viejo existe:
     | notElem oldAttr (attrNames attrs) = Left (AtributoNoExiste [oldAttr]) 
-    
-    -- Validar que el atributo nuevo no existe ya:
-    | elem newAttr (attrNames attrs) =  Left (AtributoYaExiste newAttr )
 
     -- Validar que el nombre es diferente:
     | oldAttr == newAttr = Left MismoAtributo
+  
+    -- Validar que el atributo nuevo no existe ya:
+    | elem newAttr (attrNames attrs) =  Left (AtributoYaExiste newAttr )
 
     -- Si no hay problemas:
     | otherwise =  let a' = map (\(at,ty) -> if at == oldAttr then (newAttr, ty) 
@@ -192,10 +200,8 @@ renombre oldAttr newAttr (R name attrs tups)
 
 renameTupla :: Atributo -> Atributo -> Tupla -> Tupla
 renameTupla oldAttr newAttr tup = case Map.lookup oldAttr tup of
-        Nothing -> tup  -- Nunca ocurrira por como validamos la entrada
+        Nothing -> tup  -- Nunca ocurrira por como validamos la entrada, pero lo dejamos por completitud.
         Just val -> Map.delete oldAttr $ Map.insert newAttr val tup
-
-
 
 
 -- =========================================================
@@ -247,22 +253,24 @@ interseccion r s = do
 naturalJoin :: Relacion -> Relacion -> Relacion
 naturalJoin (R n0 a0 t0) (R n1 a1 t1) =
 
-    let comunes = filter (`elem` attrNames a1) (attrNames a0)
+    let comunes = filter (`elem` attrNames a1) (attrNames a0) -- Obtenemos los atributos en comun
 
-        atribs = nub (a0 ++ a1) -- eliminamos los atributos repetidos
+        atribs = nub (a0 ++ a1) -- Eliminamos los atributos repetidos
 
         compatibles tupla0 tupla1 =
             all (\attr ->
-                Map.lookup attr tupla0 == Map.lookup attr tupla1
+                Map.lookup attr tupla0 == Map.lookup attr tupla1 -- Chequea que los valores de los atributos en comun sean iguales  
             ) comunes
 
         ts =
+            -- La relacion resultante tiene todas las combinaciones de las tuplas que tengan valores iguales en atributos en comun
             Set.fromList
-                [ Map.union tupla0 tupla1
+                [ Map.union tupla0 tupla1 
                 | tupla0 <- Set.toList t0
                 , tupla1 <- Set.toList t1
-                , compatibles tupla0 tupla1
+                , compatibles tupla0 tupla1   
                 ]
+
 
     in R (n0 ++ " ⋈ " ++ n1) atribs ts 
 

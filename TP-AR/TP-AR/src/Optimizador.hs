@@ -21,8 +21,12 @@ optimizador expr = case expr of
                         expanded = subst subMap body -- reemplazo los parametros por los argumentos
                     optimizador expanded  -- optimizo la expresion expandida
 
-                -- Si no se puede expandir, 
+            -- Decidimos optimizar los argumentos en vez de reportar los Errores.
+            -- Los errores los reportaremos solamente en el modulo Eval.
+                -- Si la cantidad de parametros no coincide con la cantidad de argumentos:
                 else ECall name <$> mapM optimizador args
+            
+            -- Si no encuentra la operacion:
             Nothing -> ECall name <$> mapM optimizador args
 
     -- Efectuar selecciones antes que las reuniones:
@@ -61,10 +65,12 @@ optimizador expr = case expr of
 -- seleccionSobreProd: aplica la seleccion sobre el producto
 seleccionSobreProd :: (Expr -> Expr -> Expr) -> Cond -> Expr -> Expr -> StateError Expr
 seleccionSobreProd constr c e1 e2 = do
+    
     let attrsC = attrsCond c
     attrs1 <- attrsExpr e1 
     attrs2 <- attrsExpr e2 
 
+    -- Vemos si los atributos de la condicion se pueden aplicar sobre e1 y e2
     let enE1 = all (`elem` attrs1) attrsC
         enE2 = all (`elem` attrs2) attrsC
 
@@ -98,7 +104,7 @@ attrsExpr expr = case expr of
     rels <- getRels
     case Map.lookup name rels of
       Just rel -> return (map fst (atributos rel))                       
-      Nothing -> throw (RelacionNoExiste name)
+      Nothing  -> return [] -- Evitamos error en optimizador, lo manejará Eval
 
   ECall name args -> do
     ops <- getOps
@@ -109,8 +115,8 @@ attrsExpr expr = case expr of
           let subMap = Map.fromList (zip params args)
               expanded = subst subMap body 
           attrsExpr expanded
-        else throw (ErrorArgumentos name (length params) (length args))
-      Nothing -> throw (OperacionNoExiste name)
+        else return [] -- Error diferido a Eval
+      Nothing -> return [] -- Error diferido a Eval
 
   -- Selección NO cambia atributos
   ESeleccion _ e ->
